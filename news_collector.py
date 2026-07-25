@@ -37,7 +37,7 @@ def normalize_news_text(text: str):
 def parse_messages(html: str, seen_sids: list[str]):
     soup = BeautifulSoup(html, 'html.parser')
     messages = soup.find_all(
-        'div', class_=lambda x: x and x.startswith('MessageItem_messageWrapper')
+        'div', class_=lambda x: x and x.startswith('MessageItem_messageWrapper__')
     )
 
     for msg in messages:
@@ -46,8 +46,8 @@ def parse_messages(html: str, seen_sids: list[str]):
             continue
 
         text_elem = next(
-            (el for el in msg.find_all('div', class_=lambda x: x and x.startswith('Text_text'))
-             if not (el.parent and el.parent.get('class') and any(c.startswith('Preview_preview') for c in el.parent['class']))),
+            (el for el in msg.find_all('div', class_=lambda x: x and x.startswith('Text_text__'))
+             if not (el.parent and el.parent.get('class') and any(c.startswith('Preview_details__') for c in el.parent['class']))),
             None
         )
         text = text_elem.get_text(separator='\n', strip=True) if text_elem else ''
@@ -64,13 +64,13 @@ def parse_messages(html: str, seen_sids: list[str]):
 
 def scroll_and_collect(seen_sids: list[str]):
     scroller = selenium_driver.find_element(
-        By.CSS_SELECTOR, "div[class*='ChatWrapper_scrollListWrapper']"
+        By.CSS_SELECTOR, "div[class*='ChatWrapper_scrollListWrapper__']"
     )
 
     for i in range(MAX_SCROLLS):
         soup = BeautifulSoup(selenium_driver.page_source, 'html.parser')
         top_message = soup.find(
-            'div', class_=lambda x: x and x.startswith('MessageItem_messageWrapper')
+            'div', class_=lambda x: x and x.startswith('MessageItem_messageWrapper__')
         )
         top_message_sid = top_message.get('data-sid') if top_message else None
         if top_message_sid and seen_sids and top_message_sid in seen_sids:
@@ -95,7 +95,7 @@ def fetch_new_posts(seen_sids: list[str]):
         # صبر تا لود شدن اولین پیام
         WebDriverWait(selenium_driver, 20).until(
             EC.presence_of_element_located(
-                (By.CSS_SELECTOR, "div[class*='MessageItem_messageWrapper']")
+                (By.CSS_SELECTOR, "div[class*='MessageItem_messageWrapper__']")
             )
         )
         time.sleep(2)  # فرصت برای رندر کامل
