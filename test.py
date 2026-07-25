@@ -17,7 +17,7 @@ if __name__ == '__main__':
         print('─' * 30 + ' POST ' + '─' * 30)
         print(f"[ {new_post.category.value if new_post.category else None} ]")
         if (post.category != new_post.category):
-            print(f"=========================> old category: {post.category}")
+            print(f"=========================> old category: {post.category.value if post.category else None}")
         print(new_post.text)
         print(f"🆔 {new_post.sid}")
 

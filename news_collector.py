@@ -45,7 +45,11 @@ def parse_messages(html: str, seen_sids: list[str]):
         if not sid or sid in seen_sids:
             continue
 
-        text_elem = msg.find('div', class_=lambda x: x and x.startswith('Text_text'))
+        text_elem = next(
+            (el for el in msg.find_all('div', class_=lambda x: x and x.startswith('Text_text'))
+             if not (el.parent and el.parent.get('class') and any(c.startswith('Preview_preview') for c in el.parent['class']))),
+            None
+        )
         text = text_elem.get_text(separator='\n', strip=True) if text_elem else ''
         normalized_text = normalize_news_text(text)
 
