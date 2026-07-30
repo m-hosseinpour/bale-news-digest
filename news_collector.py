@@ -104,3 +104,30 @@ def fetch_new_posts(seen_sids: list[str]):
     finally:
         if selenium_driver:
             selenium_driver.quit()
+
+if __name__ == '__main__':
+    seen_sids = []
+    html = """<div><div data-sid="3208793022177440039-1784949585855" class="MessageItem_messageWrapper__E9ZFU ChatWrapper_messageBlock__Wrs5L"><div class="BaseBubble_bubble__4oHot DefaultBubble_bubble__s_5uz Text_textMessage__nC_tz MessageItem_bubble__38sVg"><div class="Preview_preview__B_ivv" style="border-right: 3px solid rgb(242, 87, 168); --darkreader-inline-border-right: var(--darkreader-border-f257a8, #910b51);" data-darkreader-inline-border-right=""><div class="Preview_details__CVlWn"><span class="Preview_sender__HlFfO" style="color: rgb(242, 87, 168); --darkreader-inline-color: var(--darkreader-text-f257a8, #f25aaa);" data-darkreader-inline-color="">آخرین خبر</span><div class="Text_text__Um9IF TextPreview_text_preview___Mz_e"><span><strong><img style="background: url(&quot;/_next/static/media/20.41bcc406.png&quot;) 50% 41.0714% / 5700% 5700%; --darkreader-inline-bgcolor: initial;" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" "="" class="emoji" data-codepoints="1f534" alt="undefined" data-darkreader-inline-bgcolor="">آژیرهای هشدار در استان یَنبُع عربستان سعودی به صدا درآمدند</strong> @Akharinkhabar | akharinkhabar.ir</span></div></div></div><div class=""><div class="Text_text__Um9IF"><span class="p" dir="rtl"><strong><img style="background: url(&quot;/_next/static/media/20.41bcc406.png&quot;) 50% 41.0714% / 5700% 5700%; --darkreader-inline-bgcolor: initial;" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" "="" class="emoji" data-codepoints="1f534" alt="undefined" data-darkreader-inline-bgcolor="">انفجارها دوباره خمیس مشیط در عربستان را لرزاند</strong></span><span class="p" dir="ltr"><a href="https://ble.ir/Akharinkhabar" class="mention" dir="auto" data-mention="@Akharinkhabar">@Akharinkhabar</a> | <a class="link" target="_blank" href="http://akharinkhabar.ir" dir="auto">akharinkhabar.ir</a></span></div><div class="Info_info__l7qhn"><div class="Info_meta___R9G5"><div class="Info_ViewWrapper__O75PK"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.21353 6.52916C8.21353 7.47491 7.44653 8.24136 6.50078 8.24136C5.55503 8.24136 4.78857 7.47491 4.78857 6.52916C4.78857 5.58286 5.55503 4.81641 6.50078 4.81641C7.44653 4.81641 8.21353 5.58286 8.21353 6.52916Z" stroke="#7A869A" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" data-darkreader-inline-stroke="" style="--darkreader-inline-stroke: var(--darkreader-text-7a869a, #9e9689);"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M6.49908 10.4837C8.56175 10.4837 10.4484 9.00066 11.5106 6.52849C10.4484 4.05633 8.56175 2.57324 6.49908 2.57324H6.50125C4.43858 2.57324 2.55195 4.05633 1.48975 6.52849C2.55195 9.00066 4.43858 10.4837 6.50125 10.4837H6.49908Z" stroke="#7A869A" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" data-darkreader-inline-stroke="" style="--darkreader-inline-stroke: var(--darkreader-text-7a869a, #9e9689);"></path></svg><p class="Info_Text__LVysg">۱۵۱.۱K</p></div><p class="Info_date__fCTQ4">۶:۴۹</p></div></div></div></div></div><div>"""
+    soup = BeautifulSoup(html, 'html.parser')
+    messages = soup.find_all(
+        'div', class_=lambda x: x and x.startswith('MessageItem_messageWrapper__')
+    )
+
+    for msg in messages:
+        sid = msg.get('data-sid')
+        if not sid or sid in seen_sids:
+            continue
+
+        text_elem = next(
+            (el for el in msg.find_all('div', class_=lambda x: x and x.startswith('Text_text__'))
+             if not (el.parent and el.parent.get('class') and any(c.startswith('Preview_details__') for c in el.parent['class']))),
+            None
+        )
+        text = text_elem.get_text(separator='\n', strip=True) if text_elem else ''
+        normalized_text = normalize_news_text(text)
+
+        new_post = NewsPost(sid=sid, text=normalized_text, category=None)
+        print('─' * 30 + ' NEW-POST ' + '─' * 30)
+        print(f"[ {new_post.category.value if new_post.category else None} ]")
+        print(new_post.text[:200])
+        print(f"🆔 {new_post.sid}")

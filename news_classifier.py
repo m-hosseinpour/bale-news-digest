@@ -75,7 +75,6 @@ def classify_news(news_text: str) -> NewsCategory | None:
                 {"role": "user", "content": f"Text: {news_text_strip}\nAnswer:"},
             ],
             temperature=0.0,  # حداکثر قطعیت، مهم برای classification
-            max_tokens=10,  # فقط نام دسته لازم است
         )
 
         raw_output = response.choices[0].message.content.strip()
