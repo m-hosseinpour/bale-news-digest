@@ -318,7 +318,7 @@ wheels = [
 ]
 
 [[package]]
-name = "news-summarizer"
+name = "bale-news-digest"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

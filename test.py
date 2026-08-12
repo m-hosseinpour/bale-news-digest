@@ -13,7 +13,7 @@ if __name__ == '__main__':
 
     important_batch = []
     for post in all_posts:
-        new_post = NewsPost(sid=post.sid, text=post.text, category=classify_news(post.text))
+        new_post = NewsPost(sid=post.sid, text=post.text, category=post.category)
         print('─' * 30 + ' POST ' + '─' * 30)
         print(f"[ {new_post.category.value if new_post.category else None} ]")
         if (post.category != new_post.category):
