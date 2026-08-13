@@ -32,7 +32,6 @@ IMPORTANT_CATEGORIES: list[NewsCategory] = [
     NewsCategory.POLITICS,
     NewsCategory.ECONOMY,
     NewsCategory.SCIENCE_TECH,
-    NewsCategory.UNKNOWN,
 ]
 
 CHANNEL_URL = os.getenv("CHANNEL_URL", "https://ble.ir/s/akharinkhabar")

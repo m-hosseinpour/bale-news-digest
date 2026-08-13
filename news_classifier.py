@@ -1,32 +1,48 @@
+import re
+
 from config import OPEN_AI_MODEL_NAME
 from model import NewsCategory
 from open_ai_client_provider import open_ai_client
 
+
+URL_PATTERN = re.compile(
+    r"(https?://\S+|ble\.ir/\S+|www\.\S+)",
+    re.IGNORECASE
+)
+
+MENTION_PATTERN = re.compile(r"@[\w_]+")
+WHITESPACE_PATTERN = re.compile(r"\s+")
+
 # پرامپت سیستمی (بهینه برای مدل‌های ضعیف)
 # نکته: برای مدل‌های ضعیف، پرامپت باید کوتاه، ساختارمند و با مثال باشد
-SYSTEM_PROMPT = """You are a strict text classifier for Persian news. Output EXACTLY ONE word from this list and nothing else:
+SYSTEM_PROMPT = """You are a strict Persian news classifier. Output EXACTLY ONE lowercase label from this list and nothing else:
 war_conflict, advertisement, politics, economy, social, sports, culture_art, science_tech, unknown
 
-Follow the steps IN ORDER. Stop at the FIRST step that matches.
+CORE RULES:
+1. Ignore emojis, URLs, join links, @mentions, channel names, and repeated boilerplate. Classify only the main meaningful news text.
+2. Do NOT choose unknown just because the text is short, ambiguous, missing a cause, or contains links. Choose the best news category.
+3. Use unknown ONLY if there is no meaningful news content, for example empty text, only links/emojis, or completely unintelligible text.
+4. If two categories are possible, choose the category that matches the main subject/entity, not a secondary detail.
+5. Security/military & Locations rule:
+   - Choose war_conflict ONLY if there is an actual military action, attack, strike, seizure, armed clash, or explicit security incident.
+   - Unexplained disruptions in conflict-prone regions (e.g., Jeddah airport, Red Sea incidents) should be treated as war_conflict.
+   - HOWEVER, mentions of strategic locations (Strait of Hormuz, borders, seas) DO NOT automatically mean war_conflict. If the text is about the situation of citizens, fishermen, sailors, trade, or weather in these areas, choose social or economy.
+   - If it is only a civilian transport/aviation/maritime accident with no security clue, choose social.
+6. Sports rule:
+   - If the main entity is a sports organization, athlete, team, federation, FIFA, or sports official, choose sports, even if the news is about corruption, investigation, dismissal, or controversy.
+7. Vague slogans & Newspaper teasers rule:
+   - Do NOT classify vague slogans, metaphors, or poetic phrases as politics unless they explicitly mention government, elections, or officials. (e.g., "ما کف میدان ایستاده‌ایم" -> social).
+   - If the text is a newspaper table of contents, magazine teaser, or a list of article titles (e.g., "Read in today's newspaper"), classify it based on the dominant theme. If it mixes religion, culture, and general topics, prefer culture_art or social. Do not let a single word like "commanders" override the whole context to politics.
 
-STEP 1 - war_conflict:
-The MAIN topic is war or a military attack between countries or armed groups: missile/drone strikes, bombing, airstrikes, invasion, ceasefire, or official statements/denials ABOUT such attacks.
-sample Keywords: جنگ، حمله موشکی، حمله هوایی، بمباران، پهپاد، آتش‌بس، تجاوز نظامی، انفجار
-NOT war_conflict: ordinary crime like robbery or murder (سرقت مسلحانه، قتل) -> social. General military news like budget, appointments, parades, arms deals -> politics.
-
-STEP 2 - advertisement:
-The text promotes or sells a product/service: discounts, registration calls, "contact us", purchase links or phone numbers.
-sample Keywords: فروش ویژه، تخفیف، ثبت‌نام کنید، تماس بگیرید، همین حالا خرید کنید، خرید تلفنی
-NOT advertisement: news that only REPORTS prices or markets -> economy.
-
-STEP 3 - choose the single best fit:
-- politics: elections, parliament, government, diplomacy, sanctions talks, non-combat military news (انتخابات، مجلس، دولت، وزیر، دیپلماسی، مذاکرات)
-- economy: markets, inflation, currency, gold, banking, trade, prices (تورم، قیمت، دلار، طلا، بورس، بانک)
-- social: health, education, accidents, ordinary crime, environment, weather, urban issues (بیمارستان، تصادف، قتل، سرقت، آلودگی هوا، مدرسه)
-- sports: matches, tournaments, athletes, teams, medals (فوتبال، مسابقه، مدال، قهرمانی، بازیکن، گل، جام جهانی، رختکن)
-- culture_art: cinema, music, art, religion, tourism, ceremonies, mourning, funerals (سینما، موسیقی، گردشگری، حرم، عزاداری، تشییع، جشنواره)
-- science_tech: AI, internet, space, gadgets, scientific research (هوش مصنوعی، اینترنت، فضا، گوشی، فناوری، تحقیقات علمی)
-- unknown: empty, unclear, or none of the above.
+CATEGORY DEFINITIONS:
+- war_conflict: war, armed conflict, military attack, bombing, missile/drone strikes, invasion, ceasefire, armed clashes, naval/maritime security incidents, ship seizures, controlled explosions of munitions, unexploded ordnance, threats or official statements about attacks.
+- advertisement: promotion or selling of a product/service, discounts, registration calls, contact us, purchase links or phone numbers.
+- politics: government, presidency, parliament, elections, diplomacy, sanctions talks, officials, political corruption, non-combat military news such as budget, appointments, parades, arms deals.
+- economy: markets, inflation, currency, gold, banking, trade, prices, oil, economic sanctions, fishermen's livelihood, trade routes.
+- social: accidents, transport disruptions, aviation/airport/flight/maritime accidents without military cause, health, education, ordinary crime, environment, weather, urban issues, citizens' situations, slogans, social campaigns.
+- sports: matches, tournaments, athletes, teams, sports federations, FIFA, sports officials, sports corruption, transfers, medals.
+- culture_art: cinema, music, art, religion, tourism, ceremonies, mourning, funerals, books, literature, newspaper cultural sections.
+- science_tech: AI, internet, space, gadgets, scientific research.
 
 EXAMPLES:
 Text: قیمت دلار امروز کاهش یافت و طلا ارزان شد
@@ -56,15 +72,53 @@ Answer: social
 Text: شرکت فناوری مدل جدید هوش مصنوعی خود را معرفی کرد
 Answer: science_tech
 
-CRITICAL RULES:
-- Output ONLY the exact category name in English, lowercase.
-- No explanations, punctuation, or extra words.
+Text: اختلال در فرود هواپیماها در فرودگاه بین‌المللی جده؛ علت نامشخص
+Answer: war_conflict
+
+Text: افشای فساد جدید از رییس فیفا ble.ir/join/GbhWkK5T6z
+Answer: sports
+
+Text: سازمان عملیات تجارت دریایی انگلیس از وقوع حادثه در ۱۸ مایل دریایی در شرق خصب در سلطان‌نشین عمان خبر داد
+Answer: war_conflict
+
+Text: خبرنگار آخرین خبر در نشست خبری رئیس‌جمهور پرسید و رئیس‌جمهور پاسخ داد
+Answer: politics
+
+Text: انفجار کنترل‌شدهٔ مهمات عمل‌نکردهٔ دشمن در سیریک انجام می‌شود
+Answer: war_conflict
+
+Text: منابع خبری از یک حادثه امنیتی جدید در دریای سرخ گزارش می‌دهند
+Answer: war_conflict
+
+Text: یک پیام خاص از میدان به خیابان؛ ما کف میدان ایستاده‌ایم!
+Answer: social
+
+Text: در روزنامه خراسان سه‌شنبه ۲۰ مرداد ماه ۱۴۰۵ بخوانید: ماموریت‌های جدید فرماندهان، حرم، نسبت بی‌نهایت، کریمانه زیستن در هیاهوی شهر
+Answer: culture_art
+
+Text: وضعیت ایرانی‌ها در تنگه هرمز
+Answer: social
+
+Text: توقیف یک کشتی خارجی در تنگه هرمز توسط نیروی دریایی سپاه
+Answer: war_conflict
+
+CRITICAL:
+Output ONLY one lowercase category name. No explanation, no punctuation, no extra words.
 """
+3
+
+def _clean_text_for_classification(text: str) -> str:
+    text = URL_PATTERN.sub(" ", text)
+    text = MENTION_PATTERN.sub(" ", text)
+    text = text.replace("|", " ")
+    text = WHITESPACE_PATTERN.sub(" ", text)
+    return text.strip()
 
 
 def classify_news(news_text: str) -> NewsCategory | None:
-    news_text_strip = news_text.strip()
-    if not news_text_strip:
+    cleaned_text = _clean_text_for_classification(news_text.strip())
+
+    if not cleaned_text:
         return None
 
     try:
@@ -72,13 +126,14 @@ def classify_news(news_text: str) -> NewsCategory | None:
             model=OPEN_AI_MODEL_NAME,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Text: {news_text_strip}\nAnswer:"},
+                {"role": "user", "content": f"Text: {cleaned_text}\nAnswer:"},
             ],
             temperature=0.0,  # حداکثر قطعیت، مهم برای classification
         )
 
         raw_output = response.choices[0].message.content.strip()
         return _parse_category(raw_output)
+
     except Exception as e:
         print(f"خطا در ارتباط با مدل: {e}")
         raise e
@@ -104,13 +159,21 @@ def _parse_category(raw_output: str) -> NewsCategory:
 # تست
 if __name__ == "__main__":
     sample_news = [
-        "بانک مرکزی نرخ سود سپرده‌ها را افزایش داد",
-        "پرسپولیس در دربی تهران استقلال را شکست داد",
-        "شرکت اپل از آیفون جدید خود رونمایی کرد",
-        "وزیر امور خارجه با همتای روس خود دیدار کرد",
-        "آلودگی هوای تهران مدارس را تعطیل کرد",
+        "️\nتقویم امروز جمعه ۱۶ مرداد ۱۴۰۵",
+        "یک پیام خاص از میدان به خیابان؛ ما کف میدان ایستاده‌ایم!",
+        "تقویم امروز شنبه ۱۷ مرداد ۱۴۰۵",
+        "صفحه نخست روزنامه‌های ‌شنبه  ۱۷ مرداد ۱۴۰۵",
+        "اختلال در فرود هواپیماها در فرودگاه بین‌المللی جده\nچندین فروند هواپیمای مسافربری در فرودگاه بین‌المللی جده در عربستان سعودی با مشکل فرود مواجه شده‌اند.\nبر اساس گزارش رسانه‌های عربی، تعدادی از هواپیماهای غیرنظامی قادر به فرود در فرودگاه بین‌المللی جده نیستند و علت این اختلال تاکنون مشخص نشده است.",
+        "حسین اژدهایی، خبرنگار معروف هرمزگانی از شکل‌گیری وانتخاب لحن خاصش در گزارشاتش می‌گوید",
+        "افشای فساد جدید از رییس فیفا/پای یک زن در میان است\nble.ir/join/GbhWkK5T6z\nble.ir/join/GbhWkK5T6z\nble.ir/join/GbhWkK5T6z",
+        "وقوع حادثه دریایی در سواحل عمان\nسازمان عملیات تجارت دریایی انگلیس از وقوع حادثه در ۱۸ مایل دریایی در شرق خصب در سلطان نشین عمان خبر داد.",
+        "️\nخبرنگار \"آخرین خبر\" در نشست خبری امروز با رئیس جمهور چه پرسید و رئیس جمهور چه جوابی به آن داد؟\n️سوال جنجالی و پاسخ صریح رئیس جمهور؛ وقتی می‌جنگیم کمبود هم پیدا می‌کنیم\n@akharinkhabar\n|",
+        "انفجار کنترل‌شدهٔ مهمات در سیریک\nفرمانداری سیریک: انفجار کنترل‌شدهٔ مهمات عمل‌نکردهٔ دشمن امروز در بندرکوهستک انجام می‌شود؛ احتمال شنیدن صدای انفجار ناشی‌از این عملیات وجود دارد.",
+        "️\nدر روزنامه خراسان سه‌شنبه ۲۰ مرداد ماه ۱۴۰۵ بخوانید\n️ماموریت‌های جدید فرماندهان\n️حرم، نسبت بی‌نهایت\n️کریمانه زیستن در هیاهوی شهر",
+        "منابع خبری از یک حادثه امنیتی جدید در دریای سرخ گزارش می دهند/ هنوز ماهیت این حادثه مشخص نیست",
+        "وضعیت ایرانی‌ها در تنگه هرمز",
     ]
 
     for news in sample_news:
         category = classify_news(news)
-        print(f"📰 {news}\n   ➜ دسته: {category.value}\n")
+        print(f"📰 {news}\n   ➜ Category: {category.value}\n")
