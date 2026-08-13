@@ -41,7 +41,7 @@ def summarize_news_posts(news_text: str) -> NewsCategory | None:
 def summarize_and_post_links(news_batch: list[NewsPost]):
     concat_text = "\n\n***\n\n".join([p.text for p in news_batch])
     summary = summarize_news_posts(concat_text)
-    summary += "\n\n\n"
+    summary += "\n\n\nلینک خبرهای مرجع:\n"
     for p in news_batch:
         separator_index = p.sid.index("-", 1)
         post_id = p.sid[:separator_index] + "/" + p.sid[separator_index + 1:]
