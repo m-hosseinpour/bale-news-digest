@@ -3,6 +3,7 @@
 .DS_Store
 .venv
 .vscode
+__pycache__
 /.env
 /*.iml
 news_posts.json

@@ -47,7 +47,10 @@ def summarize_news_posts(news_text: str) -> NewsCategory | None:
             temperature=0.3,  # کمتر = دقیق‌تر و خلاصه‌تر
             timeout=300,  # تایم‌اوت برای CPU ضعیف
         )
-        return response.choices[0].message.content.strip()
+        content = response.choices[0].message.content.strip()
+        if not content:
+            raise RuntimeError("جواب هوش مصنوعی خالی بود")
+        return content
     except Exception as e:
         print(f"خطا در ارتباط با مدل: {e}")
         raise e
