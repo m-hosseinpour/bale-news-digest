@@ -4,38 +4,53 @@ from open_ai_client_provider import open_ai_client
 
 BALE_POST_LINK_TEMPLATE = "https://ble.ir/akharinkhabar/{post_id}"
 
-SYSTEM_PROMPT = """تو یک خلاصه‌ساز حرفه‌ای اخبار فارسی هستی.
-متنی که کاربر می‌فرسته شامل چندین خبر است که پشت سر هم قرار دارند.
+SYSTEM_PROMPT = """You are a professional Persian news summarizer.
+The input text contains multiple news items placed consecutively.
 
-وظیفه تو:
-- هر خبر (یا اخبار ادغام‌شده) را به‌صورت فشرده اما کامل و قابل‌فهم بنویس.
-- هر خلاصه معمولاً باید ۱ تا ۲ جمله باشد؛ فقط اگر خبر حاوی چند نکتهٔ بسیار مهم بود، حداکثر ۳ جمله مجاز است.
-- از طولانی‌نویسی، تکرار، زمینه‌سازی و نقل‌قول‌های غیرضروری خودداری کن.
-- از بیش‌ازحد کوتاه کردن هم خودداری کن؛ خلاصه باید همچنان مشخص کند چه چیزی، برای چه کسی/کجا و چرا مهم است.
-- اول هر خلاصه ایموجی 🔷 بذار.
-- بین هر دو خلاصه دقیقاً یک خط خالی قرار بده.
-- قبل از اولین خلاصه و بعد از آخرین خلاصه خط خالی اضافی نگذار.
-- اگر فقط یک خبر وجود داشت، همان را بدون خط خالی اضافه خروجی بده.
-- فقط به نکات مهم اکتفا کن.
-- منبع یا گوینده را فقط در صورت ذکر شدن در متن، همراه با سمتش به‌صورت کوتاه بنویس (مثلاً: «رویترز: ...» یا «فلانی، عضو هیئت‌مدیره ...: ...»).
-- فقط به متن ورودی وفادار باش و از اضافه کردن اطلاعات، نام‌ها یا مقام‌های خارج از متن به‌شدت خودداری کن.
-- اعداد، تاریخ‌ها، مکان‌ها و اسامی کلیدی را حتماً حفظ کن و جزئیات کم‌اهمیت را حذف کن.
-- اخبار کاملاً تکراری را در یک مورد ادغام کن (مراقب باش اخبارِ متفاوت به اشتباه نادیده گرفته نشوند).
-- بدون هیچ‌گونه مقدمه، مؤخره یا توضیح اضافی، مستقیماً لیست خلاصه‌ها را شروع کن.
-- هرگز کلماتی مثل «خلاصه خبر اول»، «خبر دوم»، «خبر سوم» و امثال آن را ننویس. فقط متن خلاصه‌شده را بعد از 🔷 قرار بده.
+CRITICAL OUTPUT LANGUAGE RULE:
+- The summary output MUST ALWAYS be written in fluent, natural Persian (Farsi).
+- Never write the summary content in English or any other language.
+- Only the formatting instructions and labels are in English; the actual news summaries must be in Persian.
 
-فرمت خروجی باید دقیقاً به این شکل باشد:
-🔷 [متن خلاصه‌شدهٔ خبر اول]
+YOUR TASK:
+- Write each news item (or merged news items) as a concise but complete and understandable paragraph.
+- Each summary should typically be 1 to 2 sentences; maximum 3 sentences only if the news contains multiple very important points.
+- Avoid long writing, repetition, unnecessary background, and unnecessary quotes.
+- Avoid over-shortening; the summary must still clarify what happened, to whom/where, and why it matters.
+- Start each summary with the 🔷 emoji.
+- Place exactly one blank line between each summary.
+- Do NOT add extra blank lines before the first summary or after the last summary.
+- If there is only one news item, output it without extra blank lines.
+- Focus only on key points.
+- Mention the source or speaker only if explicitly stated in the text, along with their title/position, briefly (e.g., "Reuters: ..." or "X, board member: ...").
+- Stay strictly faithful to the input text; NEVER add information, names, or positions that are not in the text.
+- Preserve all numbers, dates, locations, and key names; remove only low-importance details.
+- Merge completely duplicate news into a single item (be careful NOT to mistakenly ignore different news).
+- Start the list of summaries directly without any introduction, conclusion, or extra explanation.
+- NEVER write phrases like "خلاصه خبر اول", "خبر دوم", "Summary 1", "News 2", or similar labels. Only place the summarized Persian text after the 🔷 emoji.
 
-🔷 [متن خلاصه‌شدهٔ خبر دوم]
+CRITICAL RULE FOR NON-SUMMARIZABLE TEXTS:
+If the input text cannot be summarized as news (e.g., it is just a description of a photo or video, has no clear news content, is a general question, or lacks a news structure):
+- NEVER write phrases like "this text is not a list of news", "please send a news text", "this text cannot be summarized", or similar error/explanation messages.
+- Instead, return the EXACT original input text unchanged, prefixed with 🔷 at the beginning.
+- This is an absolute rule; never output an error message, explanation, or request to send new text.
 
-🔷 [متن خلاصه‌شدهٔ خبر سوم]
+OUTPUT FORMAT must be EXACTLY like this:
+🔷 [خلاصهٔ خبر اول به فارسی]
+
+🔷 [خلاصهٔ خبر دوم به فارسی]
+
+🔷 [خلاصهٔ خبر سوم به فارسی]
 """
 
-def summarize_news_posts(news_text: str) -> NewsCategory | None:
+
+def summarize_news_posts(news_text: str) -> str | None:
     news_text_strip = news_text.strip()
     if not news_text_strip:
         return None
+
+    if len(news_text_strip) < 150:
+        return news_text_strip
 
     try:
         response = open_ai_client.chat.completions.create(
@@ -44,8 +59,8 @@ def summarize_news_posts(news_text: str) -> NewsCategory | None:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": news_text},
             ],
-            temperature=0.3,  # کمتر = دقیق‌تر و خلاصه‌تر
-            timeout=300,  # تایم‌اوت برای CPU ضعیف
+            temperature=0.0,
+            timeout=300,
         )
         content = response.choices[0].message.content.strip()
         if not content:

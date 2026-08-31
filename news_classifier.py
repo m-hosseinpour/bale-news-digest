@@ -13,8 +13,6 @@ URL_PATTERN = re.compile(
 MENTION_PATTERN = re.compile(r"@[\w_]+")
 WHITESPACE_PATTERN = re.compile(r"\s+")
 
-# پرامپت سیستمی (بهینه برای مدل‌های ضعیف)
-# نکته: برای مدل‌های ضعیف، پرامپت باید کوتاه، ساختارمند و با مثال باشد
 SYSTEM_PROMPT = """You are a strict Persian news classifier. Output EXACTLY ONE lowercase label from this list and nothing else:
 war_conflict, advertisement, politics, economy, social, sports, culture_art, science_tech, unknown
 
@@ -105,7 +103,7 @@ Answer: war_conflict
 CRITICAL:
 Output ONLY one lowercase category name. No explanation, no punctuation, no extra words.
 """
-3
+
 
 def _clean_text_for_classification(text: str) -> str:
     text = URL_PATTERN.sub(" ", text)
@@ -128,7 +126,7 @@ def classify_news(news_text: str) -> NewsCategory | None:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": f"Text: {cleaned_text}\nAnswer:"},
             ],
-            temperature=0.0,  # حداکثر قطعیت، مهم برای classification
+            temperature=0.0,
         )
 
         raw_output = response.choices[0].message.content.strip()
