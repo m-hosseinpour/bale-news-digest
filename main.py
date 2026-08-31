@@ -1,6 +1,11 @@
 from bale_bot_message_sender import send_message
-from config import SUMMARIZE_BATCH, IMPORTANT_CATEGORIES
-from model import NewsPost
+from config import (
+    BALE_BOT_CHAT_ID,
+    CATEGORY_CHAT_IDS,
+    IMPORTANT_CATEGORIES,
+    SUMMARIZE_BATCH,
+)
+from model import NewsCategory, NewsPost
 from news_collector import NewsCollector
 from news_summarizer import summarize_and_post_links
 from utils import load_posts, save_posts
@@ -11,7 +16,19 @@ def send_summary_batch(batch: list[NewsPost]) -> list[NewsPost]:
         return []
 
     summary = summarize_and_post_links(batch)
-    send_message(summary)
+
+    # کانال اصلی: همیشه (اگر تنظیم شده باشد)
+    if BALE_BOT_CHAT_ID is not None:
+        send_message(summary, BALE_BOT_CHAT_ID)
+
+    # کانال‌های اختصاصی هر دسته: خلاصهٔ فیلترشده برای همان دسته
+    for category, chat_id in CATEGORY_CHAT_IDS.items():
+        category_posts = [p for p in batch if p.category == category]
+        if not category_posts:
+            continue
+        category_summary = summarize_and_post_links(category_posts)
+        send_message(category_summary, chat_id)
+
     return []
 
 
