@@ -29,6 +29,16 @@ YOUR TASK:
 - Start the list of summaries directly without any introduction, conclusion, or extra explanation.
 - NEVER write phrases like "خلاصه خبر اول", "خبر دوم", "Summary 1", "News 2", or similar labels. Only place the summarized Persian text after the 🔷 emoji.
 
+CRITICAL RULE FOR QUESTION-STYLE NEWS:
+If the input text is a question (e.g., "چرا ایران به اردن حمله کرد؟", "آیا توافق خواهد شد؟", "چه کسی مسئول است؟"):
+- NEVER answer the question.
+- NEVER generate explanations, analysis, reasons, or context that are not explicitly written in the input text.
+- ONLY summarize or rephrase the question itself as a news headline.
+- If the question is the entire news content, output ONLY the rephrased question (with 🔷 at the beginning).
+- Example input: "چرا ایران در حملات دیشب اردن را هدف قرار داد؟"
+- Correct output: "🔷 بررسی دلایل هدف قرار دادن اردن توسط ایران در حملات دیشب."
+- INCORRECT output (DO NOT DO THIS): "🔷 ایران به اردن حمله کرد به دلیل حمایت اردن از اسرائیل در جنگ غزه..." (this adds information not in the input).
+
 CRITICAL RULE FOR NON-SUMMARIZABLE TEXTS:
 If the input text cannot be summarized as news (e.g., it is just a description of a photo or video, has no clear news content, is a general question, or lacks a news structure):
 - NEVER write phrases like "this text is not a list of news", "please send a news text", "this text cannot be summarized", or similar error/explanation messages.
@@ -48,9 +58,6 @@ def summarize_news_posts(news_text: str) -> str | None:
     news_text_strip = news_text.strip()
     if not news_text_strip:
         return None
-
-    if len(news_text_strip) < 150:
-        return news_text_strip
 
     try:
         response = open_ai_client.chat.completions.create(
@@ -87,9 +94,14 @@ def summarize_and_post_links(news_batch: list[NewsPost]):
 
 # تست
 if __name__ == "__main__":
-    sample_news_text = ("بانک مرکزی نرخ سود سپرده‌ها را افزایش داد\n"
-                        "پرسپولیس در دربی تهران استقلال را شکست داد\n"
-                        "شرکت اپل از آیفون جدید خود رونمایی کرد\n"
-                        "وزیر امور خارجه با همتای روس خود دیدار کرد\n"
-                        "آلودگی هوای تهران مدارس را تعطیل کرد")
+    sample_news_text = (
+        "چرا ایران در حملات دیشب اردن را هدف قرار داد؟\n"
+        "آیا توافق هسته‌ای احیا خواهد شد؟\n"
+        "چه کسی مسئول انفجار در بیروت است؟\n"
+        "بانک مرکزی نرخ سود سپرده‌ها را افزایش داد\n"
+        "پرسپولیس در دربی تهران استقلال را شکست داد\n"
+        "شرکت اپل از آیفون جدید خود رونمایی کرد\n"
+        "وزیر امور خارجه با همتای روس خود دیدار کرد\n"
+        "آلودگی هوای تهران مدارس را تعطیل کرد"
+    )
     print(summarize_news_posts(sample_news_text))
