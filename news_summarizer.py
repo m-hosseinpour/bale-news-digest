@@ -78,9 +78,53 @@ def summarize_news_posts(news_text: str) -> str | None:
         raise e
 
 
+# Texts shorter than this many characters are considered already-summarized
+# and are passed through to the final message without an LLM call.
+SHORT_TEXT_THRESHOLD = 150
+
+
+def _format_short(text: str) -> str:
+    """Wrap a short post text in the same 🔷 format the LLM produces."""
+    return f"🔷 {text.strip()}"
+
+
 def summarize_and_post_links(news_batch: list[NewsPost]):
-    concat_text = "\n\n***\n\n".join([p.text for p in news_batch])
-    summary = summarize_news_posts(concat_text)
+    # Split the batch into short texts (used verbatim) and long texts (sent to LLM),
+    # while remembering each post's original index so we can restore order.
+    short_summaries: dict[int, str] = {}
+    long_posts: list[tuple[int, NewsPost]] = []
+
+    for idx, p in enumerate(news_batch):
+        if len(p.text) < SHORT_TEXT_THRESHOLD:
+            short_summaries[idx] = _format_short(p.text)
+        else:
+            long_posts.append((idx, p))
+
+    llm_summary: str | None = None
+    if long_posts:
+        long_texts = [p.text for _, p in long_posts]
+        concat_text = "\n\n***\n\n".join(long_texts)
+        llm_summary = summarize_news_posts(concat_text) or ""
+
+        # If the LLM returned one block per long post, re-attach them at the
+        # right positions. Otherwise (e.g. LLM merged posts) prepend the
+        # whole LLM output before the short summaries.
+        llm_blocks = [b for b in llm_summary.split("\n\n") if b.strip()]
+        if len(llm_blocks) == len(long_posts):
+            for (idx, _), block in zip(long_posts, llm_blocks):
+                short_summaries[idx] = block.strip()
+            final_summaries = [short_summaries[i] for i in sorted(short_summaries)]
+            summary = "\n\n".join(final_summaries)
+        else:
+            short_blocks = [short_summaries[i] for i in sorted(short_summaries)]
+            if short_blocks:
+                summary = llm_summary.strip() + "\n\n" + "\n\n".join(short_blocks)
+            else:
+                summary = llm_summary.strip()
+    else:
+        # No long posts — every summary comes from short texts.
+        summary = "\n\n".join(short_summaries[i] for i in sorted(short_summaries))
+
     summary += "\n\n\nلینک خبرهای مرجع:\n"
     for p in news_batch:
         separator_index = p.sid.index("-", 1)
