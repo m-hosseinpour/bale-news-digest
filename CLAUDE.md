@@ -7,7 +7,7 @@ A bot that automatically fetches, classifies, and summarizes news from a Bale me
 `main.py` → `NewsCollector` (Selenium/Firefox on `ble.ir/akharinkhabar`) → `news_classifier` (LLM classification) → `news_summarizer` (summary + post link) → `bale_bot_message_sender` (send to target channel).
 
 - Already-seen posts are persisted in `news_posts.json` (keeps the last 1000 items).
-- When the number of "important" posts (those in `IMPORTANT_CATEGORIES`) reaches `SUMMARIZE_BATCH`, a batch summary is produced and sent.
+- Each "important" post (those in `IMPORTANT_CATEGORIES`) is summarized individually and dispatched immediately to the main channel and, if configured, to its category's dedicated channel (`BALE_BOT_CHAT_ID_<CATEGORY>`).
 - `bot_webhook.py` returns a fixed reply for the bot's private messages (HTTPS required).
 
 ## File Layout
@@ -47,7 +47,7 @@ uv run python set_webhook.py                         # register the webhook
 - `BALE_BOT_TOKEN`, `BALE_BOT_CHAT_ID` — destination for summaries
 - `OPEN_AI_BASE_URL`, `OPEN_AI_MODEL_NAME`, `OPEN_AI_API_KEY` — LLM config
 - `CHANNEL_URL` — source channel (default: `https://ble.ir/s/akharinkhabar`)
-- `SUMMARIZE_BATCH` — important-post count that triggers a send (default 3)
+- `BALE_BOT_CHAT_ID_<CATEGORY>` — optional dedicated channel per important category (e.g. `BALE_BOT_CHAT_ID_WAR_CONFLICT`)
 - `MAX_SCROLLS`, `MAX_DRIVER_REUSE`, `PAGE_LOAD_TIMEOUT` — Selenium resource controls
 - `HEADLESS`, `DISABLE_IMAGES` — memory optimizations for VPS
 - `PUBLIC_WEBHOOK_URL` — used by `set_webhook.py`

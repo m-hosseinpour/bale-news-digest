@@ -62,8 +62,6 @@ for _cat in IMPORTANT_CATEGORIES:
     except ValueError:
         print(f"⚠ مقدار BALE_BOT_CHAT_ID_{_cat.name} نامعتبر است؛ نادیده گرفته می‌شود.")
 
-SUMMARIZE_BATCH = _env_int("SUMMARIZE_BATCH", 3)
-
 OPEN_AI_MODEL_NAME = os.getenv("OPEN_AI_MODEL_NAME", "qwen3:4b-instruct")
 OPEN_AI_BASE_URL = os.getenv("OPEN_AI_BASE_URL", "http://localhost:11434/v1")
 OPEN_AI_API_KEY = os.getenv("OPEN_AI_API_KEY", "ollama")
