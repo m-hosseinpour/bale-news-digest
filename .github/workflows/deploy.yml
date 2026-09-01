@@ -25,10 +25,17 @@ jobs:
               ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
           set -e
           cd "${{ secrets.APP_DIR }}"
-          
+
           git fetch origin main
+          LOCAL=$(git rev-parse HEAD)
+          REMOTE=$(git rev-parse origin/main)
+          if [ "$LOCAL" = "$REMOTE" ]; then
+            echo "Already up to date with origin/main ($LOCAL). Skipping deploy."
+            exit 0
+          fi
+          echo "Deploying $LOCAL -> $REMOTE"
           git reset --hard origin/main
-          
+
           uv sync
           
           sudo systemctl restart news-bot-webhook.service
