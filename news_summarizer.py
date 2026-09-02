@@ -1,3 +1,5 @@
+import re
+
 from config import OPEN_AI_MODEL_NAME
 from model import NewsCategory, NewsPost
 from open_ai_client_provider import open_ai_client
@@ -69,12 +71,49 @@ def summarize_news_posts(news_text: str) -> str | None:
 # and are passed through without an LLM call.
 SHORT_TEXT_THRESHOLD = 150
 
+# Match channel/user symbols like @akharingheimatt, @channel_name123
+_SYMBOL_RE = re.compile(r"@[A-Za-z0-9_]+")
+# Match bale channel links such as https://ble.ir/s/akharinkhabar or ble.ir/anything
+_CHANNEL_LINK_RE = re.compile(r"https?://ble\.ir/\S+|ble\.ir/\S+", re.IGNORECASE)
+# Match a single emoji (covers most common ranges, including ZWJ sequences)
+_EMOJI_RE = re.compile(
+    r"[\U0001F300-\U0001FAFF\U0001F600-\U0001F64F"
+    r"\U0001F680-\U0001F6FF☀-➿⌀-⏿"
+    r"‍️]+"
+)
+
+
+def _strip_symbols_and_channel_links(text: str) -> str:
+    """Remove @symbols and ble.ir channel links from any position in the text."""
+    text = _SYMBOL_RE.sub("", text)
+    text = _CHANNEL_LINK_RE.sub("", text)
+    return text
+
+
+def _strip_edge_emojis(text: str) -> str:
+    """Strip leading/trailing whitespace and emojis from both ends."""
+    return _EMOJI_RE.sub("", text).strip()
+
+
+def _clean_short_text(text: str) -> str:
+    """Clean a short post: drop @symbols, channel links, and edge emojis.
+
+    Empty lines are collapsed and leading/trailing whitespace is removed.
+    Returns an empty string when no meaningful content remains.
+    """
+    cleaned = _strip_symbols_and_channel_links(text)
+    # Drop lines that became blank (or contained only whitespace/symbols).
+    kept_lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
+    cleaned = "\n".join(kept_lines)
+    cleaned = _strip_edge_emojis(cleaned)
+    return cleaned
+
 
 def summarize_single_post(post: NewsPost) -> str:
     """Return the summary text for a single post. Short posts skip the LLM."""
     text = post.text.strip()
     if len(text) < SHORT_TEXT_THRESHOLD:
-        return text
+        return _clean_short_text(text)
     return summarize_news_posts(text) or text
 
 

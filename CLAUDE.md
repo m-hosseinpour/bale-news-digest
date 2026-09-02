@@ -63,3 +63,7 @@ uv run python set_webhook.py                         # register the webhook
 ## CI/CD
 
 - `.github/workflows/deploy.yml` — GitHub Action for deployment.
+
+## Workflow
+
+- After completing any code change, commit and push it to the working branch. Do not leave changes uncommitted in the working tree.
