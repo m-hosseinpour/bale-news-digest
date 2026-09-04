@@ -21,7 +21,12 @@ CORE RULES:
 2. Do NOT choose unknown just because the text is short, ambiguous, missing a cause, or contains links. Choose the best news category.
 3. Use unknown ONLY if there is no meaningful news content, for example empty text, only links/emojis, or completely unintelligible text.
 4. If two categories are possible, choose the category that matches the main subject/entity, not a secondary detail. The speaker's title (minister, spokesperson, president, commander) is NEVER a category on its own — it only sets context. The actual subject of the news decides the category. A cabinet decision on pensions is economy; a presidential decree on a military operation is war_conflict.
-5. Security/military & Locations rule:
+5. Sanctions, embargoes, and economic isolation rule:
+   - Choose politics when the news is about a government decision, official statement, diplomatic protest, or international dispute over sanctions/embargoes/economic isolation — even when the words "sanction" or "economic" appear in the text.
+   - Choose economy only when the news is about the MARKET EFFECT of sanctions: price changes, trade volume, currency moves, supply disruptions, or business impacts.
+   - A government's decision to impose, lift, join, withdraw from, or protest sanctions/embargoes is politics, not economy — even if the words "oil", "trade", or "imports" appear.
+   - The mere mention of "sanctions" or "economic isolation" does NOT make it economy. Ask: is this news about a political/diplomatic act, or about prices/markets/trade flows?
+6. Security/military & Locations rule:
    - Choose war_conflict for any of the following:
      * an actual military action, attack, strike, seizure, armed clash, or explicit security incident;
      * official military statements, commanders' messages, or armed forces communiqués about combat readiness, deterrence, defense/offense doctrine, interception capability, electronic/cyber warfare capability, air defense, missile/radar posture, or the ability to counter enemy threats — even when no specific attack is happening;
@@ -29,9 +34,9 @@ CORE RULES:
    - HOWEVER, mentions of strategic locations (Strait of Hormuz, borders, seas) DO NOT automatically mean war_conflict. If the text is about the situation of citizens, fishermen, sailors, trade, or weather in these areas, choose social or economy.
    - politics covers ONLY non-operational military news: military budgets, appointments, promotions, parades, ceremonies, arms deals, defense diplomacy, and similar administrative/political topics. An operational military statement about combat power, deterrence, or threat response is war_conflict, NOT politics.
    - If it is only a civilian transport/aviation/maritime accident with no security clue, choose social.
-6. Sports rule:
+7. Sports rule:
    - If the main entity is a sports organization, athlete, team, federation, FIFA, or sports official, choose sports, even if the news is about corruption, investigation, dismissal, or controversy.
-7. Vague slogans & Newspaper teasers rule:
+8. Vague slogans & Newspaper teasers rule:
    - Do NOT classify vague slogans, metaphors, or poetic phrases as politics unless they explicitly mention government, elections, or officials. (e.g., "ما کف میدان ایستاده‌ایم" -> social).
    - If the text is a newspaper table of contents, magazine teaser, or a list of article titles (e.g., "Read in today's newspaper"), classify it based on the dominant theme. If it mixes religion, culture, and general topics, prefer culture_art or social. Do not let a single word like "commanders" override the whole context to politics.
 
@@ -39,7 +44,7 @@ CATEGORY DEFINITIONS:
 - war_conflict: war, armed conflict, military attack, bombing, missile/drone strikes, invasion, ceasefire, armed clashes, naval/maritime security incidents, ship seizures, controlled explosions of munitions, unexploded ordnance, threats or official statements about attacks, AND official armed-forces communiqués about combat readiness, deterrence, defense/offense doctrine, interception, air defense, electronic/cyber warfare, or counter-threat capability.
 - advertisement: promotion or selling of a product/service, discounts, registration calls, contact us, purchase links or phone numbers.
 - politics: government, presidency, parliament, elections, diplomacy, sanctions talks, officials, political corruption, non-combat military news such as budget, appointments, parades, arms deals.
-- economy: markets, inflation, currency, gold, banking, trade, prices, oil, economic sanctions, fishermen's livelihood, trade routes.
+- economy: markets, inflation, currency, gold, banking, trade, prices, oil, fishermen's livelihood, trade routes, and the market effect of sanctions (price changes, supply disruptions, trade volume shifts).
 - social: accidents, transport disruptions, aviation/airport/flight/maritime accidents without military cause, health, education, ordinary crime, environment, weather, urban issues, citizens' situations, slogans, social campaigns.
 - sports: matches, tournaments, athletes, teams, sports federations, FIFA, sports officials, sports corruption, transfers, medals.
 - culture_art: cinema, music, art, religion, tourism, ceremonies, mourning, funerals, books, literature, newspaper cultural sections.
