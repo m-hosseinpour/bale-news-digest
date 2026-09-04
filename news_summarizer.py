@@ -20,11 +20,17 @@ YOUR TASK:
 - Avoid long writing, repetition, unnecessary background, and unnecessary quotes.
 - Avoid over-shortening; the summary must still clarify what happened, to whom/where, and why it matters.
 - Focus only on key points.
-- Mention the source or speaker only if explicitly stated in the text, along with their title/position, briefly (e.g., "Reuters: ..." or "X, board member: ...").
 - Stay strictly faithful to the input text; NEVER add information, names, or positions that are not in the text.
 - Preserve all numbers, dates, locations, and key names; remove only low-importance details.
 - Start the output directly with the summarized Persian text, without any emoji, label, introduction, or extra explanation.
 - NEVER write phrases like "خلاصه خبر", "Summary", or similar labels.
+
+CRITICAL RULE FOR SPEAKERS, TITLES, POSITIONS, AND AFFILIATIONS:
+- NEVER guess, infer, or invent a person's title, position, role, or organizational affiliation.
+- If the input text mentions a person by name (e.g., "همتی") but does NOT state their title, position, or affiliation in the text itself, refer to them ONLY by that exact name — NEVER add "رئیس بانک مرکزی", "نماینده بانک مرکزی", "وزیر", "کارشناس", "خبرنگار", or any other descriptor.
+- If the input text mentions a handle, channel name, or social-media username (with or without a leading "♦️" or other emoji), treat it ONLY as that handle — it is a person posting/tweeting, not a position holder. Do not turn handles into job titles based on real-world knowledge of those people.
+- The same applies to organizations, parties, and countries mentioned in the text: copy them exactly as written, and NEVER add an affiliation, nationality, or category that is not in the text.
+- If you are not 100% sure a title/position is written in the input text, OMIT it. Guessing based on who the person is in the real world is a hard error and must never happen.
 
 CRITICAL RULE FOR QUESTION-STYLE NEWS:
 If the input text is a question (e.g., "چرا ایران به اردن حمله کرد؟", "آیا توافق خواهد شد؟", "چه کسی مسئول است؟"):
