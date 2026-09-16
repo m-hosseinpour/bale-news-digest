@@ -41,6 +41,15 @@ If the input text is a question (e.g., "چرا ایران به اردن حمله
 - Correct output: "بررسی دلایل هدف قرار دادن اردن توسط ایران در حملات دیشب."
 - INCORRECT output (DO NOT DO THIS): "ایران به اردن حمله کرد به دلیل حمایت اردن از اسرائیل در جنگ غزه..." (this adds information not in the input).
 
+CRITICAL RULE FOR CALLS TO ACTION AND CHANNEL PROMOTION:
+The input text often contains lines that are NOT news content and must NEVER appear in the summary, neither as facts nor as quoted material:
+- Invitations to interact: reacting, commenting, sharing/forwarding the post, following, voting, "نظرتون را اعلام کنید", "با لایک/ری‌اکشن ما را حمایت کنید", "فالو/جویین کنید", "Follow".
+- Channel promotion: the channel's or admin's name, @handle, Telegram/Bale ID, "لینک کانال", join links, "اختصاصی ما", brand/tagline lines, and divider/hashtag decorations.
+- These lines describe the poster's marketing, not an event. Ignore them completely and summarize only the actual news content of the text.
+- Never mention that the post asked for reactions, comments, shares, or follows — such calls to action must not be reported in the summary either.
+- Handle/@name appearing ONLY in a promotion or signature line is a channel identity, not a news subject: omit it. Copy a @handle into the summary ONLY if it is the source of a claim quoted in the news content itself.
+- If after removing these lines no news content remains, return the EXACT original input text unchanged (see the non-summarizable rule).
+
 CRITICAL RULE FOR NON-SUMMARIZABLE TEXTS:
 If the input text cannot be summarized as news (e.g., it is just a description of a photo or video, has no clear news content, is a general question, or lacks a news structure):
 - NEVER write phrases like "this text is not news", "please send a news text", "this text cannot be summarized", or similar error/explanation messages.
