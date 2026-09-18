@@ -2,16 +2,15 @@ import time
 from collections.abc import Iterable
 
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.common.exceptions import (
-    NoSuchElementException,
-    TimeoutException,
-    WebDriverException,
+from playwright.sync_api import (
+    Browser,
+    BrowserContext,
+    Page,
+    Playwright,
+    Route,
+    TimeoutError as PlaywrightTimeoutError,
+    sync_playwright,
 )
-from selenium.webdriver.common.by import By
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 
 from config import (
     CHANNEL_URL,
@@ -22,14 +21,17 @@ from config import (
     WEBDRIVER_WAIT_TIMEOUT,
     MAX_DRIVER_REUSE,
     DISABLE_IMAGES,
+    CHROMIUM_EXECUTABLE_PATH,
 )
 from model import NewsCategory, NewsPost
 from news_classifier import classify_news
 
 
+# UA پیش‌فرض headless شامل «HeadlessChrome» است که سیگنال بات محسوب می‌شود؛
+# پس عمداً یک UA معمولی کروم ست می‌کنیم.
 USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) "
-    "Gecko/20100101 Firefox/127.0"
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
 )
 
 MESSAGE_SELECTOR = "div[class*='MessageItem_messageWrapper__']"
@@ -45,19 +47,30 @@ def normalize_news_text(text: str) -> str:
     return normalized_text.strip()
 
 
+def _abort_images(route: Route) -> None:
+    if route.request.resource_type == "image":
+        route.abort()
+    else:
+        route.continue_()
+
+
 class NewsCollector:
     """
-    مدیریت چرخه‌عمر Firefox برای اجرای مداوم.
+    مدیریت چرخه‌عمر Chromium (Playwright) برای اجرای مداوم.
 
-    مزیت نسبت به نسخهٔ قبلی:
-    - Firefox برای هر fetch از صفر ساخته نمی‌شود.
-    - بعد از collect، صفحه به about:blank می‌رود تا RAM آزاد شود.
-    - بعد از تعداد مشخصی fetch، Firefox restart می‌شود.
+    مزیت‌ها نسبت به نسخهٔ Selenium:
+    - locatorها خودشان auto-wait و re-resolve می‌کنند؛ دیگر نیازی به
+      مدیریت دستی stale element و WebDriverWait نیست.
+    - هر fetch یک context تازه می‌سازد و در پایان می‌بندد؛ هم state ایزوله
+      می‌شود و هم حافظهٔ صفحه کاملاً آزاد می‌شود (جانشین about:blank).
+    - بعد از تعداد مشخصی fetch، فقط مرورگر restart می‌شود، نه کل رانتایم
+      Playwright؛ پس restart ارزان‌تر است.
     - در صورت خطا، session خراب بسته می‌شود و دفعهٔ بعد session جدید ساخته می‌شود.
     """
 
     def __init__(self) -> None:
-        self.driver: webdriver.Firefox | None = None
+        self._playwright: Playwright | None = None
+        self.browser: Browser | None = None
         self.fetch_count = 0
 
     def __enter__(self) -> "NewsCollector":
@@ -68,87 +81,125 @@ class NewsCollector:
         self.stop()
 
     def start(self) -> None:
-        if self.driver is None:
-            self.driver = self._create_driver()
+        if self.browser is not None:
+            return
+
+        if self._playwright is None:
+            self._playwright = sync_playwright().start()
+
+        self.browser = self._launch_browser()
 
     def stop(self) -> None:
-        if self.driver is not None:
+        self._close_browser()
+
+        if self._playwright is not None:
             try:
-                self.driver.quit()
-            except WebDriverException as e:
-                print(f"⚠ خطا در بستن Firefox: {e}")
+                self._playwright.stop()
+            except Exception as e:
+                print(f"⚠ خطا در بستن Playwright: {e}")
             finally:
-                self.driver = None
-                self.fetch_count = 0
+                self._playwright = None
+
+        self.fetch_count = 0
 
     def restart(self) -> None:
-        print("♻️ راه‌اندازی مجدد Firefox برای جلوگیری از نشتی حافظه...")
-        self.stop()
-        self.start()
+        print("♻️ راه‌اندازی مجدد Chromium برای جلوگیری از نشتی حافظه...")
+        self._close_browser()
+        self.browser = self._launch_browser()
+        self.fetch_count = 0
 
-    def _create_driver(self) -> webdriver.Firefox:
-        options = Options()
+    def _close_browser(self) -> None:
+        if self.browser is None:
+            return
 
-        if HEADLESS:
-            options.add_argument("--headless")
-
-        options.page_load_strategy = "normal"
-
-        options.set_preference("general.useragent.override", USER_AGENT)
-
-        # غیرفعال کردن تصویرها معمولاً سرعت لود و مصرف منابع را بهتر می‌کند.
-        if DISABLE_IMAGES:
-            options.set_preference("permissions.default.image", 2)
-
-        # چند preference برای سبک‌تر شدن Firefox
-        options.set_preference("dom.webnotifications.enabled", False)
-        options.set_preference("media.autoplay.default", 5)
-        options.set_preference("reader.parse-on-load.enabled", False)
-
-        driver = webdriver.Firefox(options=options)
-        driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
-        driver.set_window_size(1366, 900)
-
-        return driver
-
-    def _get_top_sid(self, driver: webdriver.Firefox) -> str | None:
         try:
-            element = driver.find_element(By.CSS_SELECTOR, MESSAGE_SELECTOR)
-            return element.get_attribute("data-sid")
-        except NoSuchElementException:
-            return None
+            self.browser.close()
+        except Exception as e:
+            print(f"⚠ خطا در بستن Chromium: {e}")
+        finally:
+            self.browser = None
+
+    def _launch_browser(self) -> Browser:
+        if self._playwright is None:
+            raise RuntimeError("Playwright runtime initialized نشد.")
+
+        options: dict = {
+            "headless": HEADLESS,
+            # /dev/shm روی VPSهای کوچک معمولاً کم است و باعث crash می‌شود.
+            "args": ["--disable-dev-shm-usage"],
+        }
+
+        # در محیط‌هایی که دانلود مرورگر Playwright بلاک است، یک Chromium محلی
+        # (ساخته‌شده با install_chromium.py) استفاده می‌شود.
+        if CHROMIUM_EXECUTABLE_PATH:
+            options["executable_path"] = CHROMIUM_EXECUTABLE_PATH
+
+        return self._playwright.chromium.launch(**options)
+
+    def _open_page(self) -> tuple[BrowserContext, Page]:
+        browser = self.browser
+        if browser is None:
+            raise RuntimeError("Chromium browser initialized نشد.")
+
+        context = browser.new_context(
+            user_agent=USER_AGENT,
+            viewport={"width": 1366, "height": 900},
+        )
+
+        if DISABLE_IMAGES:
+            context.route("**/*", _abort_images)
+
+        page = context.new_page()
+        page.set_default_timeout(WEBDRIVER_WAIT_TIMEOUT * 1000)
+        page.set_default_navigation_timeout(PAGE_LOAD_TIMEOUT * 1000)
+
+        return context, page
+
+    def _get_top_sid(self, page: Page) -> str | None:
+        # معادل بدون‌انتظارِ find_element + get_attribute؛ چون count/evaluate
+        # خودشان re-resolve می‌کنند، مشکل stale element منتفی است.
+        return page.evaluate(
+            """(selector) => {
+                const el = document.querySelector(selector);
+                return el ? el.getAttribute("data-sid") : null;
+            }""",
+            MESSAGE_SELECTOR,
+        )
 
     def _wait_for_top_sid_change(
             self,
-            driver: webdriver.Firefox,
+            page: Page,
             old_sid: str | None,
             timeout: int,
     ) -> bool:
         try:
-            WebDriverWait(driver, timeout).until(
-                lambda d: self._get_top_sid(d) != old_sid
+            page.wait_for_function(
+                """(args) => {
+                    const el = document.querySelector(args.selector);
+                    return el !== null && el.getAttribute("data-sid") !== args.old;
+                }""",
+                arg={"selector": MESSAGE_SELECTOR, "old": old_sid},
+                timeout=timeout * 1000,
             )
             return True
-        except TimeoutException:
+        except PlaywrightTimeoutError:
             return False
 
     def _scroll_to_previous_messages(
             self,
-            driver: webdriver.Firefox,
+            page: Page,
             seen_sids: set[str],
     ) -> None:
         if MAX_SCROLLS <= 0:
             return
 
-        WebDriverWait(driver, WEBDRIVER_WAIT_TIMEOUT).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, SCROLL_SELECTOR))
-        )
+        page.locator(SCROLL_SELECTOR).first.wait_for(state="attached")
 
         last_top_sid = None
         stable_rounds = 0
 
         for i in range(MAX_SCROLLS):
-            top_sid = self._get_top_sid(driver)
+            top_sid = self._get_top_sid(page)
 
             if top_sid and seen_sids and top_sid in seen_sids:
                 print(f"  ✓ به آخرین پیام قبلی رسیدیم (بعد از {i} اسکرول)")
@@ -170,20 +221,12 @@ class NewsCollector:
 
             last_top_sid = top_sid
 
-            try:
-                scroller = driver.find_element(By.CSS_SELECTOR, SCROLL_SELECTOR)
-                driver.execute_script("arguments[0].scrollTop = 0;", scroller)
-            except WebDriverException:
-                # اگر عنصر stale شد یا خطایی پیش آمد، دوباره پیدا می‌کنیم.
-                scroller = WebDriverWait(driver, WEBDRIVER_WAIT_TIMEOUT).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, SCROLL_SELECTOR))
-                )
-                driver.execute_script("arguments[0].scrollTop = 0;", scroller)
+            page.locator(SCROLL_SELECTOR).first.evaluate("el => el.scrollTop = 0")
 
             # به‌جای sleep خشک، صبر می‌کنیم تا top_sid عوض شود؛
             # اگر نشد، timeout می‌خورد و ادامه می‌دهیم.
             changed = self._wait_for_top_sid_change(
-                driver,
+                page,
                 top_sid,
                 SCROLL_PAUSE + 3,
                 )
@@ -252,35 +295,29 @@ class NewsCollector:
     def fetch_new_posts(self, seen_sids: set[str]) -> Iterable[NewsPost]:
         self.start()
 
-        driver = self.driver
-        if driver is None:
-            raise RuntimeError("Firefox driver initialized نشد.")
-
         try:
             print(f"\n🔄 بررسی کانال... ({time.strftime('%H:%M:%S')})")
 
-            driver.get(CHANNEL_URL)
+            context, page = self._open_page()
 
-            WebDriverWait(driver, WEBDRIVER_WAIT_TIMEOUT).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, MESSAGE_SELECTOR))
-            )
-
-            # یک مکث کوتاه برای رندر اولیه؛
-            # اگر لازم بود، می‌توانی این را 2 هم نگه داری.
-            time.sleep(1)
-
-            self._scroll_to_previous_messages(driver, seen_sids)
-
-            # DOM نهایی را می‌گیریم.
-            html = driver.page_source
-
-            # آزاد کردن صفحه قبل از classification / LLM.
-            # این کار باعث می‌شود RAM مربوط به صفحهٔ کانال کمتر نگه داشته شود.
             try:
-                driver.get("about:blank")
-            except WebDriverException:
-                # اگر مرورگر دیگر سالم نیست، آن را ببند؛ دفعهٔ بعد دوباره ساخته می‌شود.
-                self.stop()
+                page.goto(CHANNEL_URL, wait_until="domcontentloaded")
+                page.locator(MESSAGE_SELECTOR).first.wait_for(state="attached")
+
+                # یک مکث کوتاه برای رندر اولیه؛
+                # اگر لازم بود، می‌توانی این را 2 هم نگه داری.
+                time.sleep(1)
+
+                self._scroll_to_previous_messages(page, seen_sids)
+
+                # DOM نهایی را می‌گیریم.
+                html = page.content()
+            finally:
+                # بستن context صفحه را کاملاً آزاد می‌کند و حافظه برمی‌گردد.
+                try:
+                    context.close()
+                except Exception as e:
+                    print(f"⚠ خطا در بستن context: {e}")
 
             self.fetch_count += 1
 
@@ -316,13 +353,13 @@ class NewsCollector:
 
         except Exception:
             # اگر خطای جدی پیش آمد، session خراب را می‌بندیم
-            # تا در چرخهٔ بعد یک Firefox سالم ساخته شود.
+            # تا در چرخهٔ بعد یک Chromium سالم ساخته شود.
             self.stop()
             raise
 
 
 # برای سازگاری با کدهای قدیمی یا استفادهٔ یک‌باره.
-# اگر فقط یک‌بار صدا زده شود، Firefox باز و در انتها بسته می‌شود.
+# اگر فقط یک‌بار صدا زده شود، Chromium باز و در انتها بسته می‌شود.
 def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
     with NewsCollector() as collector:
         yield from collector.fetch_new_posts(seen_sids)

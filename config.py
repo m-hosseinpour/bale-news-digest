@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -66,13 +67,23 @@ OPEN_AI_MODEL_NAME = os.getenv("OPEN_AI_MODEL_NAME", "qwen3:4b-instruct")
 OPEN_AI_BASE_URL = os.getenv("OPEN_AI_BASE_URL", "http://localhost:11434/v1")
 OPEN_AI_API_KEY = os.getenv("OPEN_AI_API_KEY", "ollama")
 
-# تنظیمات Selenium / Firefox
+# تنظیمات Playwright / Chromium
+# مقادیر timeout بر حسب ثانیه‌اند و در news_collector به میلی‌ثانیه تبدیل می‌شوند.
 HEADLESS = _env_bool("HEADLESS", True)
 DISABLE_IMAGES = _env_bool("DISABLE_IMAGES", True)
 PAGE_LOAD_TIMEOUT = _env_int("PAGE_LOAD_TIMEOUT", 45)
 WEBDRIVER_WAIT_TIMEOUT = _env_int("WEBDRIVER_WAIT_TIMEOUT", 20)
 
-# بعد از این تعداد fetch، Firefox restart می‌شود.
+# بعد از این تعداد fetch، Chromium restart می‌شود.
 # برای جلوگیری از memory leak روی VPS مفید است.
 # اگر 0 باشد restart خودکار غیرفعال می‌شود.
 MAX_DRIVER_REUSE = _env_int("MAX_DRIVER_REUSE", 20)
+
+# مسیر Chromium محلی. برای محیط‌هایی که دانلود مرورگر Playwright بلاک است،
+# install_chromium.py این باینری را در مسیر پیش‌فرض زیر می‌سازد و همین‌جا
+# خودکار برداشته می‌شود. اگر موجود نباشد، Playwright به مرورگر بستهٔ خودش
+# برمی‌گردد، پس این متغیر کاملاً اختیاری است.
+_DEFAULT_CHROMIUM = Path.home() / ".cache" / "playwright-chromium" / "chromium"
+CHROMIUM_EXECUTABLE_PATH = os.getenv("CHROMIUM_EXECUTABLE_PATH") or (
+    str(_DEFAULT_CHROMIUM) if _DEFAULT_CHROMIUM.exists() else None
+)

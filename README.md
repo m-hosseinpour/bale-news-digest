@@ -4,7 +4,7 @@
 
 ## امکانات
 
-- جمع‌آوری پیام‌های جدید کانال با Selenium و Firefox headless
+- جمع‌آوری پیام‌های جدید کانال با Playwright و Chromium headless
 - دسته‌بندی اخبار با OpenAI-compatible API
 - خلاصه‌سازی اخبار مهم و ارسال به کانال با بات بله
 - ذخیره پیام‌های دیده‌شده در `news_posts.json`
@@ -13,22 +13,34 @@
 ## پیش‌نیازها
 
 - Python 3.11+
-- Firefox و geckodriver
 - uv
+- Chromium (بخش «نصب مرورگر» را ببین؛ نیازی به مرورگر سیستمی نیست)
 
-## نصب Firefox و geckodriver
+## نصب مرورگر
+
+حالت استاندارد، مرورگر بستهٔ خود Playwright است:
 
 ```shell
-sudo apt install -y software-properties-common
-sudo add-apt-repository -y ppa:mozillateam/ppa
-
-echo 'Package: *
-Pin: release o=LP-PPA-mozillateam
-Pin-Priority: 1001' | sudo tee /etc/apt/preferences.d/mozilla-ppa
-
-sudo apt update
-sudo apt install firefox firefox-geckodriver
+uv run playwright install --with-deps chromium
 ```
+
+> **اگر سرور داخل ایران است:** هم CDN رسمی Playwright
+> (`cdn.playwright.dev`) و هم مخزن Google برای Chrome for Testing با
+> geo-block یعنی `403 Access denied` رد می‌شوند. در این حالت از
+> `install_chromium.py` استفاده کن. این اسکریپت همان Chromium را از
+> registry پکیج‌های npm برمی‌دارد — پکیج `@sparticuz/chromium` باینری را
+> داخل خود tarball دارد، پس به هیچ CDN بلاک‌شده‌ای وابسته نیست:
+>
+> ```shell
+> uv run python install_chromium.py
+> ```
+>
+> خروجی در `~/.cache/playwright-chromium/` می‌نشیند و `config.py` خودش
+> پیدایش می‌کند. اگر میرور پیش‌فرض npm کند بود، با `NPM_REGISTRY` عوضش کن:
+>
+> ```shell
+> NPM_REGISTRY=https://registry.npmmirror.com uv run python install_chromium.py
+> ```
 
 ## نصب پروژه
 
