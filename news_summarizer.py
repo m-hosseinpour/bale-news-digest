@@ -5,8 +5,23 @@ from config import CHANNEL_SLUG, OPEN_AI_MODEL_NAME
 from model import MediaKind, NewsCategory, NewsPost
 from open_ai_client_provider import open_ai_client
 
-# تعداد تلاش مجدد وقتی گیتوی پاسخ ۲۰۰ اما بدون choices برمی‌گرداند.
-MAX_EMPTY_RESPONSE_RETRIES = 3
+# تعداد تلاش مجدد وقتی پاسخ مدل قابل استفاده نیست: یا خالی است (گیتوی پاسخ
+# ۲۰۰ اما بدون choices می‌دهد) یا غیرفارسی (بعضی backend‌ها از نقش خارج می‌شوند).
+MAX_BAD_RESPONSE_RETRIES = 3
+
+# گارد زبان خروجی. عمداً ساده و سهل‌گیر است: فقط پاسخ‌هایی را می‌گیرد که آشکارا
+# به خط دیگری نوشته شده‌اند (چینی/انگلیسی/…) — نه عربی را از فارسی جدا می‌کند،
+# چون سخت‌گیریِ بیشتر ریسک رد کردنِ خلاصهٔ درست را دارد.
+_PERSIAN_LETTER_RE = re.compile(r"[\u0600-\u06FF]")
+MIN_PERSIAN_LETTERS = 10
+
+
+def _looks_persian(text: str) -> bool:
+    """آیا خروجی مدل واقعاً فارسی است؟ (حداقل ۱۰ حرف فارسی و دست‌کم نیمی از حروف)"""
+    persian = len(_PERSIAN_LETTER_RE.findall(text))
+    letters = sum(1 for ch in text if ch.isalpha())
+    return persian >= MIN_PERSIAN_LETTERS and persian * 2 >= letters
+
 
 BALE_POST_LINK_TEMPLATE = f"https://ble.ir/{CHANNEL_SLUG}/{{post_id}}"
 
@@ -115,17 +130,21 @@ def summarize_news_posts(
         return None
 
     try:
-        # گیتوی گاهی پاسخ ۲۰۰ اما بدون choices برمی‌گرداند؛ چند بار تلاش کن
-        # تا یک اجرا با یک پاسخ خالی وسط کار نخوابد.
-        for attempt in range(MAX_EMPTY_RESPONSE_RETRIES + 1):
+        # خروجی خالی یا غیرفارسی قابل استفاده نیست؛ چند بار تلاش کن تا یک اجرا
+        # با یک پاسخ بد وسط کار نخوابد.
+        for attempt in range(MAX_BAD_RESPONSE_RETRIES + 1):
             content = _request_summary(news_text, media_kind)
-            if content is not None:
+            if content is not None and _looks_persian(content):
                 return content
-            if attempt < MAX_EMPTY_RESPONSE_RETRIES:
-                print(f"⚠ پاسخ خالی از مدل؛ تلاش دوباره ({attempt + 1}/{MAX_EMPTY_RESPONSE_RETRIES})")
+            if attempt < MAX_BAD_RESPONSE_RETRIES:
+                reason = "خالی" if content is None else "غیرفارسی"
+                print(
+                    f"⚠ پاسخ {reason} از مدل؛ تلاش دوباره "
+                    f"({attempt + 1}/{MAX_BAD_RESPONSE_RETRIES})"
+                )
                 time.sleep(1)
 
-        raise RuntimeError("جواب هوش مصنوعی پس از چند تلاش خالی بود")
+        raise RuntimeError("پاسخ هوش مصنوعی پس از چند تلاش قابل استفاده نبود")
 
     except Exception as e:
         print(f"خطا در ارتباط با مدل: {e}")
