@@ -1,373 +1,267 @@
+import json
+import re
 import time
 from collections.abc import Iterable
 
-from bs4 import BeautifulSoup
-from playwright.sync_api import (
-    Browser,
-    BrowserContext,
-    Page,
-    Playwright,
-    Route,
-    TimeoutError as PlaywrightTimeoutError,
-    sync_playwright,
-)
+import requests
 
 from config import (
-    CHANNEL_URL,
-    MAX_SCROLLS,
-    SCROLL_PAUSE,
-    HEADLESS,
-    PAGE_LOAD_TIMEOUT,
-    WEBDRIVER_WAIT_TIMEOUT,
-    MAX_DRIVER_REUSE,
-    DISABLE_IMAGES,
-    CHROMIUM_EXECUTABLE_PATH,
+    CHANNEL_SLUG,
+    HISTORY_PAGE_SLEEP,
+    HTTP_TIMEOUT,
+    MAX_PAGES_PER_RUN,
+    MAX_POSTS_PER_RUN,
+    PEER_ID,
 )
 from model import NewsCategory, NewsPost
 from news_classifier import classify_news
 
+API_URL = "https://api.ble.ir/api/v1/LoadHistory"
+PUBLIC_CHANNEL_URL = "https://ble.ir/s/{slug}"
 
-# UA پیش‌فرض headless شامل «HeadlessChrome» است که سیگنال بات محسوب می‌شود؛
-# پس عمداً یک UA معمولی کروم ست می‌کنیم.
-USER_AGENT = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+# آیدی داخلی API نوع ۲ = کانال است.
+PEER_TYPE_CHANNEL = 2
+
+PEER_ID_PATTERNS = (
+    re.compile(r'\\"peer\\":\{\\"type\\":(\d+),\\"id\\":(-?\d+)\}'),
+    re.compile(r'"peer":\{"type":(\d+),"id":(-?\d+)\}'),
 )
 
-MESSAGE_SELECTOR = "div[class*='MessageItem_messageWrapper__']"
-SCROLL_SELECTOR = "div[class*='ChatWrapper_scrollListWrapper__']"
-TEXT_SELECTOR = "div[class*='Text_text__']"
+PEER_ID_HELP = (
+    "برای پیدا کردنش این دستور را اجرا کن و مقدار چاپ‌شده را در PEER_ID داخل .env بگذار:\n"
+    f"  uv run python scripts/resolve_peer_id.py {CHANNEL_SLUG}"
+)
 
 
-def normalize_news_text(text: str) -> str:
-    normalized_text = text.replace("@Akharinkhabar\n|\nakharinkhabar.ir", "")
-    normalized_text = normalized_text.replace("@Akharinkhabar", "")
-    normalized_text = normalized_text.replace("akharinkhabar.ir", "")
-    normalized_text = normalized_text.replace(" | ", "")
-    return normalized_text.strip()
+def resolve_peer_id(slug: str) -> int:
+    """آیدی داخلی کانال را از صفحهٔ عمومی ble.ir/s/<slug> استخراج می‌کند."""
+    url = PUBLIC_CHANNEL_URL.format(slug=slug)
 
+    try:
+        response = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=HTTP_TIMEOUT,
+        )
+    except requests.RequestException as e:
+        raise RuntimeError(f"⛔ دریافت صفحهٔ کانال {slug} ناموفق بود: {e}") from e
 
-def _abort_images(route: Route) -> None:
-    if route.request.resource_type == "image":
-        route.abort()
-    else:
-        route.continue_()
+    if response.status_code == 404:
+        raise RuntimeError(f"⛔ کانال «{slug}» پیدا نشد (HTTP 404). اسلاگ را بررسی کن.")
 
-
-class NewsCollector:
-    """
-    مدیریت چرخه‌عمر Chromium (Playwright) برای اجرای مداوم.
-
-    مزیت‌ها نسبت به نسخهٔ Selenium:
-    - locatorها خودشان auto-wait و re-resolve می‌کنند؛ دیگر نیازی به
-      مدیریت دستی stale element و WebDriverWait نیست.
-    - هر fetch یک context تازه می‌سازد و در پایان می‌بندد؛ هم state ایزوله
-      می‌شود و هم حافظهٔ صفحه کاملاً آزاد می‌شود (جانشین about:blank).
-    - بعد از تعداد مشخصی fetch، فقط مرورگر restart می‌شود، نه کل رانتایم
-      Playwright؛ پس restart ارزان‌تر است.
-    - در صورت خطا، session خراب بسته می‌شود و دفعهٔ بعد session جدید ساخته می‌شود.
-    """
-
-    def __init__(self) -> None:
-        self._playwright: Playwright | None = None
-        self.browser: Browser | None = None
-        self.fetch_count = 0
-
-    def __enter__(self) -> "NewsCollector":
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        self.stop()
-
-    def start(self) -> None:
-        if self.browser is not None:
-            return
-
-        if self._playwright is None:
-            self._playwright = sync_playwright().start()
-
-        self.browser = self._launch_browser()
-
-    def stop(self) -> None:
-        self._close_browser()
-
-        if self._playwright is not None:
-            try:
-                self._playwright.stop()
-            except Exception as e:
-                print(f"⚠ خطا در بستن Playwright: {e}")
-            finally:
-                self._playwright = None
-
-        self.fetch_count = 0
-
-    def restart(self) -> None:
-        print("♻️ راه‌اندازی مجدد Chromium برای جلوگیری از نشتی حافظه...")
-        self._close_browser()
-        self.browser = self._launch_browser()
-        self.fetch_count = 0
-
-    def _close_browser(self) -> None:
-        if self.browser is None:
-            return
-
-        try:
-            self.browser.close()
-        except Exception as e:
-            print(f"⚠ خطا در بستن Chromium: {e}")
-        finally:
-            self.browser = None
-
-    def _launch_browser(self) -> Browser:
-        if self._playwright is None:
-            raise RuntimeError("Playwright runtime initialized نشد.")
-
-        options: dict = {
-            "headless": HEADLESS,
-            # /dev/shm روی VPSهای کوچک معمولاً کم است و باعث crash می‌شود.
-            "args": ["--disable-dev-shm-usage"],
-        }
-
-        # در محیط‌هایی که دانلود مرورگر Playwright بلاک است، یک Chromium محلی
-        # (ساخته‌شده با install_chromium.py) استفاده می‌شود.
-        if CHROMIUM_EXECUTABLE_PATH:
-            options["executable_path"] = CHROMIUM_EXECUTABLE_PATH
-
-        return self._playwright.chromium.launch(**options)
-
-    def _open_page(self) -> tuple[BrowserContext, Page]:
-        browser = self.browser
-        if browser is None:
-            raise RuntimeError("Chromium browser initialized نشد.")
-
-        context = browser.new_context(
-            user_agent=USER_AGENT,
-            viewport={"width": 1366, "height": 900},
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"⛔ صفحهٔ کانال {slug} با کد {response.status_code} برگشت؛ "
+            "احتمالاً موقت است، دوباره تلاش کن."
         )
 
-        if DISABLE_IMAGES:
-            context.route("**/*", _abort_images)
+    for pattern in PEER_ID_PATTERNS:
+        match = pattern.search(response.text)
+        if match:
+            peer_id = int(match.group(2))
+            print(f"✓ آیدی داخلی کانال {slug}: {peer_id}")
+            return peer_id
 
-        page = context.new_page()
-        page.set_default_timeout(WEBDRIVER_WAIT_TIMEOUT * 1000)
-        page.set_default_navigation_timeout(PAGE_LOAD_TIMEOUT * 1000)
+    raise RuntimeError(
+        f"⛔ آیدی داخلی کانال {slug} در HTML صفحه پیدا نشد؛ "
+        "ساختار صفحهٔ بله عوض شده است."
+    )
 
-        return context, page
 
-    def _get_top_sid(self, page: Page) -> str | None:
-        # معادل بدون‌انتظارِ find_element + get_attribute؛ چون count/evaluate
-        # خودشان re-resolve می‌کنند، مشکل stale element منتفی است.
-        return page.evaluate(
-            """(selector) => {
-                const el = document.querySelector(selector);
-                return el ? el.getAttribute("data-sid") : null;
-            }""",
-            MESSAGE_SELECTOR,
+def _validate_history(payload: object, anchor_ms: int) -> list[dict]:
+    """شکل پاسخ LoadHistory را اعتبارسنجی می‌کند.
+
+    این API مستندنشده است؛ اگر ساختارش عوض شود باید خطای واضح بدهیم، نه لیست خالی —
+    وگرنه یک روز بی‌صدا هیچ خبری جمع نمی‌شود.
+    """
+    if not isinstance(payload, dict):
+        raise RuntimeError(
+            f"⛔ پاسخ LoadHistory از نوع dict نبود ({type(payload).__name__}); "
+            "قرارداد API بله عوض شده است."
         )
 
-    def _wait_for_top_sid_change(
-            self,
-            page: Page,
-            old_sid: str | None,
-            timeout: int,
-    ) -> bool:
-        try:
-            page.wait_for_function(
-                """(args) => {
-                    const el = document.querySelector(args.selector);
-                    return el !== null && el.getAttribute("data-sid") !== args.old;
-                }""",
-                arg={"selector": MESSAGE_SELECTOR, "old": old_sid},
-                timeout=timeout * 1000,
-            )
-            return True
-        except PlaywrightTimeoutError:
-            return False
+    history = payload.get("history")
+    if not isinstance(history, list):
+        raise RuntimeError(
+            "⛔ کلید history در پاسخ LoadHistory نیست یا لیست نیست; "
+            f"کلیدهای دریافتی: {sorted(payload)[:10]}"
+        )
 
-    def _scroll_to_previous_messages(
-            self,
-            page: Page,
-            seen_sids: set[str],
-    ) -> None:
-        if MAX_SCROLLS <= 0:
+    if not history:
+        return []
+
+    dates: list[int] = []
+    for entry in history:
+        if not isinstance(entry, dict):
+            raise RuntimeError(f"⛔ یکی از آیتم‌های history دیکشنری نیست: {type(entry).__name__}")
+
+        rid = entry.get("rid")
+        if not isinstance(rid, str) or not rid:
+            raise RuntimeError(f"⛔ فیلد rid در آیتم history نامعتبر است: {rid!r}")
+
+        date = entry.get("date")
+        if not isinstance(date, int) or isinstance(date, bool):
+            raise RuntimeError(f"⛔ فیلد date در آیتم history نامعتبر است (rid={rid}): {date!r}")
+
+        dates.append(date)
+
+    # قفل اصلی صفحه‌بندی: اندازهٔ صفحه ثابت ۱۰ است و anchor باید هر بار عقب برود،
+    # وگرنه همان ۱۰ پیام تا ابد برمی‌گردد.
+    if min(dates) - 1 >= anchor_ms:
+        raise RuntimeError(
+            "⛔ صفحه‌بندی متوقف شد: anchor جلو نرفت "
+            f"(anchor={anchor_ms}, min(date)={min(dates)}). "
+            "قرارداد LoadHistory عوض شده است."
+        )
+
+    return history
+
+
+def load_history(peer_id: int, date_ms: int) -> list[dict]:
+    """یک صفحه از تاریخچه (حداکثر ۱۰ پیام) را برمی‌گرداند."""
+    try:
+        response = requests.post(
+            API_URL,
+            json={"peer": {"type": PEER_TYPE_CHANNEL, "id": peer_id}, "date": date_ms},
+            headers={"Content-Type": "application/json"},
+            timeout=HTTP_TIMEOUT,
+        )
+        response.raise_for_status()
+    except requests.RequestException as e:
+        print(f"⚠ خطا در ارتباط با API بله: {e}")
+        raise RuntimeError(f"⛔ واکشی تاریخچه از API بله ناموفق بود: {e}") from e
+
+    try:
+        payload = json.loads(response.content)
+    except ValueError as e:
+        print(f"⚠ پاسخ API بله JSON معتبر نبود: {e}")
+        raise RuntimeError(f"⛔ پاسخ API بله JSON معتبر نبود: {e}") from e
+
+    return _validate_history(payload, date_ms)
+
+
+def extract_text(message: dict) -> str:
+    """متن پیام را از هر شکل آن بیرون می‌کشد.
+
+    متن ویدیوها/فایل‌ها در documentMessage.caption.text است؛ در کانال‌های خبری
+    این شکل غالب است و نادیده گرفتنش بخش عمدهٔ خبرها را بی‌صدا حذف می‌کند.
+    """
+    if not isinstance(message, dict):
+        return ""
+
+    if "textMessage" in message:
+        text_message = message.get("textMessage") or {}
+        if isinstance(text_message, dict):
+            text = text_message.get("text")
+            if isinstance(text, str):
+                return text
+        return ""
+
+    if "documentMessage" in message:
+        document_message = message.get("documentMessage") or {}
+        if not isinstance(document_message, dict):
+            return ""
+        caption = document_message.get("caption") or {}
+        if not isinstance(caption, dict):
+            return ""
+        text = caption.get("text")
+        return text if isinstance(text, str) else ""
+
+    # emptyMessage و هر شکل ناشناختهٔ دیگر: متن ندارد.
+    return ""
+
+
+def normalize_news_text(text: str, slug: str) -> str:
+    """امضای تبلیغاتی کانال را از متن حذف می‌کند.
+
+    در متن واقعی این خط با حرف بزرگ می‌آید («@Akharinkhabar | akharinkhabar.ir»)
+    در حالی که اسلاگ کانال کوچک است، پس تطبیق باید بی‌توجه به بزرگی/کوچکی باشد.
+    """
+    escaped = re.escape(slug)
+    promo_line = re.compile(rf"@{escaped}\s*\|\s*{escaped}\.ir", re.IGNORECASE)
+    mention = re.compile(rf"@{escaped}\b", re.IGNORECASE)
+
+    normalized = promo_line.sub("", text)
+    normalized = mention.sub("", normalized)
+    return normalized.strip()
+
+
+def _build_sid(entry: dict) -> str:
+    # rid یک رشتهٔ JSON است (ممکن است int64 منفی باشد) و باید دست‌نخورده بماند،
+    # چون dedup با news_posts.json روی همین قالب انجام می‌شود.
+    return f"{entry['rid']}-{entry['date']}"
+
+
+def _ensure_peer_id() -> int:
+    if PEER_ID is None:
+        raise RuntimeError(f"⛔ مقدار PEER_ID تنظیم نشده است.\n{PEER_ID_HELP}")
+    return PEER_ID
+
+
+def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
+    """پست‌های جدید کانال را از API بله واکشی می‌کند و یکی‌یکی yield می‌کند."""
+    peer_id = _ensure_peer_id()
+
+    print(f"\n🔄 بررسی کانال... ({time.strftime('%H:%M:%S')})")
+
+    anchor = int(time.time() * 1000)
+    seen_rids: set[str] = set()
+    new_posts = 0
+
+    for page_index in range(MAX_PAGES_PER_RUN):
+        if page_index:
+            time.sleep(HISTORY_PAGE_SLEEP)
+
+        history = load_history(peer_id, anchor)
+        if not history:
+            print("✓ به انتهای تاریخچهٔ کانال رسیدیم")
             return
 
-        page.locator(SCROLL_SELECTOR).first.wait_for(state="attached")
+        reached_old_post = False
 
-        last_top_sid = None
-        stable_rounds = 0
+        for entry in history:
+            rid = entry["rid"]
+            if rid in seen_rids:
+                continue
+            seen_rids.add(rid)
 
-        for i in range(MAX_SCROLLS):
-            top_sid = self._get_top_sid(page)
-
-            if top_sid and seen_sids and top_sid in seen_sids:
-                print(f"  ✓ به آخرین پیام قبلی رسیدیم (بعد از {i} اسکرول)")
+            sid = _build_sid(entry)
+            if sid in seen_sids:
+                print(f"  ✓ به آخرین پست قبلی رسیدیم (sid={sid})")
+                reached_old_post = True
                 break
 
-            # اگر چند بار پشت سر هم top_sid عوض نشد، یعنی اسکرول باعث لود پیام قدیمی‌تر نشده است.
-            # چون کانال خیلی قدیمی است و عملاً هیچ‌وقت به ابتدای کانال نمی‌رسیم،
-            # این وضعیت معمولاً نشانهٔ کندی سرور بله یا مشکل شبکه است.
-            if top_sid == last_top_sid:
-                stable_rounds += 1
-                if stable_rounds >= 3:
-                    raise RuntimeError(
-                        "اسکرول به بالا متوقف شده است؛ top_sid چند بار تغییر نکرد. "
-                        "احتمالاً سرور بله یا شبکه کند است و پیام‌های قدیمی‌تر لود نمی‌شوند. "
-                        f"scroll_index={i}, last_top_sid={last_top_sid}"
-                    )
-            else:
-                stable_rounds = 0
-
-            last_top_sid = top_sid
-
-            page.locator(SCROLL_SELECTOR).first.evaluate("el => el.scrollTop = 0")
-
-            # به‌جای sleep خشک، صبر می‌کنیم تا top_sid عوض شود؛
-            # اگر نشد، timeout می‌خورد و ادامه می‌دهیم.
-            changed = self._wait_for_top_sid_change(
-                page,
-                top_sid,
-                SCROLL_PAUSE + 3,
-                )
-
-            if not changed:
-                time.sleep(0.3)
-        else:
-            print(f"  ⚠ به سقف {MAX_SCROLLS} اسکرول رسیدیم")
-
-    def _extract_raw_posts(
-            self,
-            html: str,
-            seen_sids: set[str],
-    ) -> list[NewsPost]:
-        soup = BeautifulSoup(html, "html.parser")
-        raw_posts: list[NewsPost] = []
-        local_seen: set[str] = set()
-
-        messages = soup.find_all(
-            "div",
-            class_=lambda x: x and x.startswith("MessageItem_messageWrapper__"),
-        )
-
-        for msg in messages:
-            sid = msg.get("data-sid")
-
-            if not sid or sid in seen_sids or sid in local_seen:
+            text = normalize_news_text(extract_text(entry["message"]), CHANNEL_SLUG)
+            if not text:
                 continue
 
-            text_elem = next(
-                (
-                    el
-                    for el in msg.find_all(
-                    "div",
-                    class_=lambda x: x and x.startswith("Text_text__"),
-                )
-                    if not (
-                        el.parent
-                        and el.parent.get("class")
-                        and any(
-                    c.startswith("Preview_details__")
-                    for c in el.parent["class"]
-                )
-                )
-                ),
-                None,
-            )
-
-            text = text_elem.get_text(separator="\n", strip=True) if text_elem else ""
-            normalized_text = normalize_news_text(text)
-
-            if not normalized_text:
-                continue
-
-            local_seen.add(sid)
-            raw_posts.append(
-                NewsPost(
-                    sid=sid,
-                    text=normalized_text,
-                    category=None,
-                )
-            )
-
-        return raw_posts
-
-    def fetch_new_posts(self, seen_sids: set[str]) -> Iterable[NewsPost]:
-        self.start()
-
-        try:
-            print(f"\n🔄 بررسی کانال... ({time.strftime('%H:%M:%S')})")
-
-            context, page = self._open_page()
-
+            category: NewsCategory | None = None
             try:
-                page.goto(CHANNEL_URL, wait_until="domcontentloaded")
-                page.locator(MESSAGE_SELECTOR).first.wait_for(state="attached")
+                category = classify_news(text)
+            except Exception as e:
+                print(f"⚠ خطا در classification برای sid={sid}: {e}")
+                category = NewsCategory.UNKNOWN
 
-                # یک مکث کوتاه برای رندر اولیه؛
-                # اگر لازم بود، می‌توانی این را 2 هم نگه داری.
-                time.sleep(1)
+            print("─" * 30 + " NEW-POST " + "─" * 30)
+            print(f"[ {category.value if category else None} ]")
+            print(text[:200])
+            print(f"🆔 {sid}")
 
-                self._scroll_to_previous_messages(page, seen_sids)
+            new_posts += 1
+            yield NewsPost(sid=sid, text=text, category=category)
 
-                # DOM نهایی را می‌گیریم.
-                html = page.content()
-            finally:
-                # بستن context صفحه را کاملاً آزاد می‌کند و حافظه برمی‌گردد.
-                try:
-                    context.close()
-                except Exception as e:
-                    print(f"⚠ خطا در بستن context: {e}")
+            if new_posts >= MAX_POSTS_PER_RUN:
+                print(f"⚠ به سقف {MAX_POSTS_PER_RUN} پست جدید رسیدیم")
+                return
 
-            self.fetch_count += 1
+        if reached_old_post:
+            return
 
-            raw_posts = self._extract_raw_posts(html, seen_sids)
-            print(f"📦 {len(raw_posts)} پست جدید پیدا شد")
-
-            # restart دوره‌ای برای جلوگیری از memory leak
-            if MAX_DRIVER_REUSE > 0 and self.fetch_count >= MAX_DRIVER_REUSE:
-                self.restart()
-
-            # classification بعد از جمع‌آوری DOM انجام می‌شود،
-            # نه همزمان با اسکرول‌های سنگین.
-            for post in raw_posts:
-                category: NewsCategory | None = None
-
-                if post.text:
-                    try:
-                        category = classify_news(post.text)
-                    except Exception as e:
-                        print(f"⚠ خطا در classification برای sid={post.sid}: {e}")
-                        category = NewsCategory.UNKNOWN
-
-                print("─" * 30 + " NEW-POST " + "─" * 30)
-                print(f"[ {category.value if category else None} ]")
-                print(post.text[:200])
-                print(f"🆔 {post.sid}")
-
-                yield NewsPost(
-                    sid=post.sid,
-                    text=post.text,
-                    category=category,
-                )
-
-        except Exception:
-            # اگر خطای جدی پیش آمد، session خراب را می‌بندیم
-            # تا در چرخهٔ بعد یک Chromium سالم ساخته شود.
-            self.stop()
-            raise
-
-
-# برای سازگاری با کدهای قدیمی یا استفادهٔ یک‌باره.
-# اگر فقط یک‌بار صدا زده شود، Chromium باز و در انتها بسته می‌شود.
-def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
-    with NewsCollector() as collector:
-        yield from collector.fetch_new_posts(seen_sids)
+        anchor = min(entry["date"] for entry in history) - 1
+    else:
+        print(f"⚠ به سقف {MAX_PAGES_PER_RUN} صفحه رسیدیم")
 
 
 if __name__ == "__main__":
-    seen: set[str] = set()
-
-    with NewsCollector() as collector:
-        for post in collector.fetch_new_posts(seen):
-            print(post)
+    for post in fetch_new_posts(set()):
+        print(post)

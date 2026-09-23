@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -20,12 +19,16 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
-def _env_bool(name: str, default: bool) -> bool:
+def _env_float(name: str, default: float) -> float:
     value = os.getenv(name)
     if value is None:
         return default
 
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+    try:
+        return float(value)
+    except ValueError:
+        print(f"⚠ مقدار نامعتبر برای {name}={value!r}; استفاده از {default}")
+        return default
 
 
 IMPORTANT_CATEGORIES: list[NewsCategory] = [
@@ -35,10 +38,22 @@ IMPORTANT_CATEGORIES: list[NewsCategory] = [
     NewsCategory.SCIENCE_TECH,
 ]
 
-CHANNEL_URL = os.getenv("CHANNEL_URL", "https://ble.ir/s/akharinkhabar")
+CHANNEL_SLUG = os.getenv("CHANNEL_SLUG", "akharinkhabar")
 
-MAX_SCROLLS = _env_int("MAX_SCROLLS", 500)
-SCROLL_PAUSE = _env_int("SCROLL_PAUSE", 2)
+# آیدی داخلی کانال (نه آیدی Bot API) که از env خوانده می‌شود و در زمان اجرا
+# هیچ‌وقت دوباره کشف نمی‌شود. اگر تنظیم نشده باشد، news_collector با خطای
+# واضح فارسی کاربر را به scripts/resolve_peer_id.py هدایت می‌کند.
+_RAW_PEER_ID = os.getenv("PEER_ID")
+try:
+    PEER_ID = int(_RAW_PEER_ID) if _RAW_PEER_ID else None
+except ValueError:
+    print("⚠ مقدار PEER_ID نامعتبر است؛ برای یافتنش scripts/resolve_peer_id.py را اجرا کن.")
+    PEER_ID = None
+
+MAX_PAGES_PER_RUN = _env_int("MAX_PAGES_PER_RUN", 50)
+MAX_POSTS_PER_RUN = _env_int("MAX_POSTS_PER_RUN", 500)
+HISTORY_PAGE_SLEEP = _env_float("HISTORY_PAGE_SLEEP", 0.3)
+HTTP_TIMEOUT = _env_int("HTTP_TIMEOUT", 30)
 
 BALE_BOT_TOKEN = os.getenv("BALE_BOT_TOKEN")
 
@@ -66,24 +81,3 @@ for _cat in IMPORTANT_CATEGORIES:
 OPEN_AI_MODEL_NAME = os.getenv("OPEN_AI_MODEL_NAME", "qwen3:4b-instruct")
 OPEN_AI_BASE_URL = os.getenv("OPEN_AI_BASE_URL", "http://localhost:11434/v1")
 OPEN_AI_API_KEY = os.getenv("OPEN_AI_API_KEY", "ollama")
-
-# تنظیمات Playwright / Chromium
-# مقادیر timeout بر حسب ثانیه‌اند و در news_collector به میلی‌ثانیه تبدیل می‌شوند.
-HEADLESS = _env_bool("HEADLESS", True)
-DISABLE_IMAGES = _env_bool("DISABLE_IMAGES", True)
-PAGE_LOAD_TIMEOUT = _env_int("PAGE_LOAD_TIMEOUT", 45)
-WEBDRIVER_WAIT_TIMEOUT = _env_int("WEBDRIVER_WAIT_TIMEOUT", 20)
-
-# بعد از این تعداد fetch، Chromium restart می‌شود.
-# برای جلوگیری از memory leak روی VPS مفید است.
-# اگر 0 باشد restart خودکار غیرفعال می‌شود.
-MAX_DRIVER_REUSE = _env_int("MAX_DRIVER_REUSE", 20)
-
-# مسیر Chromium محلی. برای محیط‌هایی که دانلود مرورگر Playwright بلاک است،
-# install_chromium.py این باینری را در مسیر پیش‌فرض زیر می‌سازد و همین‌جا
-# خودکار برداشته می‌شود. اگر موجود نباشد، Playwright به مرورگر بستهٔ خودش
-# برمی‌گردد، پس این متغیر کاملاً اختیاری است.
-_DEFAULT_CHROMIUM = Path.home() / ".cache" / "playwright-chromium" / "chromium"
-CHROMIUM_EXECUTABLE_PATH = os.getenv("CHROMIUM_EXECUTABLE_PATH") or (
-    str(_DEFAULT_CHROMIUM) if _DEFAULT_CHROMIUM.exists() else None
-)

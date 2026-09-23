@@ -1,10 +1,10 @@
 import re
 
-from config import OPEN_AI_MODEL_NAME
+from config import CHANNEL_SLUG, OPEN_AI_MODEL_NAME
 from model import NewsCategory, NewsPost
 from open_ai_client_provider import open_ai_client
 
-BALE_POST_LINK_TEMPLATE = "https://ble.ir/akharinkhabar/{post_id}"
+BALE_POST_LINK_TEMPLATE = f"https://ble.ir/{CHANNEL_SLUG}/{{post_id}}"
 
 SYSTEM_PROMPT = """You are a professional Persian news summarizer.
 The input text contains a single news item.

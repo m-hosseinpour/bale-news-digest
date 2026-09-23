@@ -5,7 +5,7 @@ from config import (
     IMPORTANT_CATEGORIES,
 )
 from model import NewsCategory, NewsPost
-from news_collector import NewsCollector
+from news_collector import fetch_new_posts
 from news_summarizer import compose_message, summarize_single_post
 from utils import load_posts, save_posts
 
@@ -39,16 +39,15 @@ def run_once() -> None:
     all_posts: list[NewsPost] = load_posts()
     seen_sids: set[str] = {p.sid for p in all_posts}
 
-    with NewsCollector() as collector:
-        for new_post in collector.fetch_new_posts(seen_sids):
-            all_posts.append(new_post)
-            seen_sids.add(new_post.sid)
+    for new_post in fetch_new_posts(seen_sids):
+        all_posts.append(new_post)
+        seen_sids.add(new_post.sid)
 
-            if new_post.category and new_post.category in IMPORTANT_CATEGORIES:
-                dispatch_post(new_post)
+        if new_post.category and new_post.category in IMPORTANT_CATEGORIES:
+            dispatch_post(new_post)
 
-            all_posts = all_posts[-1000:]
-            save_posts(all_posts)
+        all_posts = all_posts[-1000:]
+        save_posts(all_posts)
 
 
 if __name__ == "__main__":
