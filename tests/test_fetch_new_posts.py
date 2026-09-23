@@ -136,8 +136,11 @@ def test_fetch_new_posts_respects_post_cap(monkeypatch):
 
 
 def test_fetch_new_posts_raises_when_pagination_stalls(monkeypatch):
-    # اگر منهای یک در anchor جا بیفتد، سرور همان صفحه را برمی‌گرداند و
-    # بدون این گارد حلقه تا سقف MAX_PAGES_PER_RUN روی یک صفحه می‌ماند.
+    # سرور همان صفحهٔ تکراری را برمی‌گرداند (anchor جلو نمی‌رود)؛ بدون این گارد
+    # حلقه تا سقف MAX_PAGES_PER_RUN روی یک صفحه می‌ماند.
+    # توجه: این تست تلهٔ «جا افتادن منهای یک» را پین نمی‌کند — آن تله فقط یک
+    # ردیف تکراری اضافه می‌کند (چون date کران شامل است) و در
+    # test_fetch_new_posts_advances_anchor پین شده است.
     monkeypatch.setattr(news_collector, "PEER_ID", 1)
     monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
     monkeypatch.setattr(news_collector, "classify_news", lambda text: None)
@@ -170,3 +173,26 @@ def test_news_post_model_roundtrip_for_negative_rid():
     post = NewsPost(sid="-42-1000", text="خبر", category=NewsCategory.SOCIAL)
     assert post.sid == "-42-1000"
     assert post.category is NewsCategory.SOCIAL
+
+
+def test_same_rid_with_two_dates_yields_both_posts(monkeypatch):
+    # یک rid می‌تواند روی دو ردیف با تاریخ‌های متفاوت بیاید و هر دو در
+    # news_posts.json ذخیره شده باشند؛ dedup نباید روی rid انجام شود.
+    monkeypatch.setattr(news_collector, "PEER_ID", 1)
+    monkeypatch.setattr(news_collector, "MAX_PAGES_PER_RUN", 5)
+    monkeypatch.setattr(news_collector, "MAX_POSTS_PER_RUN", 100)
+    monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
+    monkeypatch.setattr(news_collector, "classify_news", lambda text: NewsCategory.SOCIAL)
+
+    pages = [
+        [_entry("7", 2000, "خبر الف"), _entry("7", 1999, "خبر ب")],
+        [],
+    ]
+    monkeypatch.setattr(
+        news_collector, "load_history", lambda peer_id, date: list(pages.pop(0))
+    )
+
+    posts = list(fetch_new_posts(set()))
+
+    assert [p.sid for p in posts] == ["7-2000", "7-1999"]
+    assert [p.text for p in posts] == ["خبر الف", "خبر ب"]

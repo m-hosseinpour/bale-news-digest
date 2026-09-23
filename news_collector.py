@@ -103,6 +103,23 @@ def _validate_history(payload: object, anchor_ms: int) -> list[dict]:
         if not isinstance(date, int) or isinstance(date, bool):
             raise RuntimeError(f"⛔ فیلد date در آیتم history نامعتبر است (rid={rid}): {date!r}")
 
+        message = entry.get("message")
+        if not isinstance(message, dict):
+            raise RuntimeError(
+                f"⛔ فیلد message در آیتم history دیکشنری نیست (rid={rid}؛ "
+                f"نوع={type(message).__name__}). قرارداد LoadHistory عوض شده است."
+            )
+
+        # message خالی در داده واقعی هم دیده می‌شود (حدود ۰٫۱٪) و یعنی «بدون محتوا»،
+        # مثل emptyMessage؛ ولی دیکشنری پُر بدون هیچ شکل شناخته‌شده یعنی سرور
+        # شکل‌ها را تغییر نام داده — و ادامه دادن یعنی حذف بی‌صدای همهٔ خبرها.
+        if message and not any(kind in message for kind in KNOWN_MESSAGE_KINDS):
+            raise RuntimeError(
+                "⛔ شکل message در آیتم history ناشناخته است "
+                f"(rid={rid}؛ کلیدها={sorted(message)[:10]}). "
+                "قرارداد LoadHistory عوض شده است و ادامه دادن یعنی حذف بی‌صدای خبرها."
+            )
+
         dates.append(date)
 
     # قفل اصلی صفحه‌بندی: اندازهٔ صفحه ثابت ۱۰ است و anchor باید هر بار عقب برود،
@@ -117,17 +134,17 @@ def _validate_history(payload: object, anchor_ms: int) -> list[dict]:
     return history
 
 
-def _ensure_page_progress(history: list[dict], seen_rids: set[str]) -> None:
+def _ensure_page_progress(history: list[dict], collected_sids: set[str]) -> None:
     """صفحهٔ تازه باید حداقل یک پیام ندیده داشته باشد.
 
     این گارد تلهٔ اصلی را می‌گیرد: اگر منهای یک در `anchor = min(date) - 1` جا
     بیفتد، سرور همان ۱۰ پیام قبلی را برمی‌گرداند و حلقه بی‌نهایت (یا تا سقف
     صفحه) روی یک صفحه می‌ماند.
     """
-    if all(entry["rid"] in seen_rids for entry in history):
+    if history and all(_build_sid(entry) in collected_sids for entry in history):
         raise RuntimeError(
             "⛔ صفحه‌بندی جلو نمی‌رود: صفحهٔ دریافتی هیچ پیام جدیدی نداشت "
-            f"(rid تکراری، min(date)={min(entry['date'] for entry in history)}). "
+            f"(sid تکراری، min(date)={min(entry['date'] for entry in history)}). "
             "قرارداد صفحه‌بندی LoadHistory عوض شده است."
         )
 
@@ -153,6 +170,12 @@ def load_history(peer_id: int, date_ms: int) -> list[dict]:
         raise RuntimeError(f"⛔ پاسخ API بله JSON معتبر نبود: {e}") from e
 
     return _validate_history(payload, date_ms)
+
+
+# سه شکل پیام که این API واقعاً برمی‌گرداند. اگر سرور شکل تازه‌ای اضافه کند
+# یا یکی را تغییر نام دهد، باید خطا بدهیم: وگرنه extract_text رشتهٔ خالی
+# می‌دهد، پست بی‌صدا حذف می‌شود، و تاریخچه «تمام‌شده» به نظر می‌رسد.
+KNOWN_MESSAGE_KINDS = ("textMessage", "documentMessage", "emptyMessage")
 
 
 def extract_text(message: dict) -> str:
@@ -182,7 +205,7 @@ def extract_text(message: dict) -> str:
         text = caption.get("text")
         return text if isinstance(text, str) else ""
 
-    # emptyMessage و هر شکل ناشناختهٔ دیگر: متن ندارد.
+    # emptyMessage عمداً متن ندارد.
     return ""
 
 
@@ -220,7 +243,7 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
     print(f"\n🔄 بررسی کانال... ({time.strftime('%H:%M:%S')})")
 
     anchor = int(time.time() * 1000)
-    seen_rids: set[str] = set()
+    collected_sids: set[str] = set()
     new_posts = 0
 
     for page_index in range(MAX_PAGES_PER_RUN):
@@ -233,21 +256,22 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
             return
 
         if page_index:
-            _ensure_page_progress(history, seen_rids)
+            _ensure_page_progress(history, collected_sids)
 
         reached_old_post = False
 
         for entry in history:
-            rid = entry["rid"]
-            if rid in seen_rids:
-                continue
-            seen_rids.add(rid)
-
+            # کلید یکتایی از API «rid» نیست: یک rid می‌تواند روی دو ردیف با
+            # تاریخ‌های متفاوت بیاید و هر دو در news_posts.json ذخیره شده باشند.
+            # پس جلوگیری از تکرار باید روی sid باشد، نه rid.
             sid = _build_sid(entry)
             if sid in seen_sids:
                 print(f"  ✓ به آخرین پست قبلی رسیدیم (sid={sid})")
                 reached_old_post = True
                 break
+            if sid in collected_sids:
+                continue
+            collected_sids.add(sid)
 
             text = normalize_news_text(extract_text(entry["message"]), CHANNEL_SLUG)
             if not text:

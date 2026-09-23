@@ -20,6 +20,8 @@ from utils import POSTS_FILE  # noqa: E402
 
 DEFAULT_SAMPLE = 100
 PAGE_SLEEP = 0.3
+# سقف ایمنی: اگر سرور anchor را نادیده بگیرد، بدون این حلقه تا ابد درخواست می‌فرستد.
+MAX_PAGES = 200
 
 
 def _message_kind(message: dict) -> str:
@@ -32,22 +34,32 @@ def _message_kind(message: dict) -> str:
 def _fetch_sample(peer_id: int, sample_size: int) -> list[dict]:
     anchor = int(time.time() * 1000)
     entries: list[dict] = []
-    seen_rids: set[str] = set()
+    seen_sids: set[str] = set()
 
-    while len(entries) < sample_size:
+    for _ in range(MAX_PAGES):
         history = load_history(peer_id, anchor)
         if not history:
             print("✓ به انتهای تاریخچه رسیدیم")
             break
 
+        if all(_build_sid(entry) in seen_sids for entry in history):
+            print("⚠ صفحه‌بندی جلو نمی‌رود (همان پیام‌ها تکرار شدند)؛ متوقف شد")
+            break
+
         for entry in history:
-            if entry["rid"] in seen_rids:
+            sid = _build_sid(entry)
+            if sid in seen_sids:
                 continue
-            seen_rids.add(entry["rid"])
+            seen_sids.add(sid)
             entries.append(entry)
+
+        if len(entries) >= sample_size:
+            break
 
         anchor = min(entry["date"] for entry in history) - 1
         time.sleep(PAGE_SLEEP)
+    else:
+        print(f"⚠ به سقف {MAX_PAGES} صفحه رسیدیم")
 
     return entries[:sample_size]
 

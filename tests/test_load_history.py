@@ -116,7 +116,7 @@ def test_load_history_sends_expected_request_body(monkeypatch):
     captured = {}
 
     class Response:
-        content = b'{"history": [{"rid": "-1", "date": 999}]}'
+        content = b'{"history": [{"rid": "-1", "date": 999, "message": {"emptyMessage": {}}}]}'
 
         def raise_for_status(self):
             return None
@@ -133,4 +133,44 @@ def test_load_history_sends_expected_request_body(monkeypatch):
     assert captured["url"] == "https://api.ble.ir/api/v1/LoadHistory"
     assert captured["json"] == {"peer": {"type": 2, "id": 533692756}, "date": 1000}
     assert captured["headers"]["Content-Type"] == "application/json"
-    assert history == [{"rid": "-1", "date": 999}]
+    assert history == [{"rid": "-1", "date": 999, "message": {"emptyMessage": {}}}]
+
+
+def test_unknown_message_shape_raises():
+    # شکل تازه/تغییرنام‌یافتهٔ message باید خطا بدهد، نه اینکه پست بی‌صدا حذف
+    # شود و تاریخچه «تمام‌شده» به نظر برسد.
+    with pytest.raises(RuntimeError) as excinfo:
+        _validate_history(
+            {"history": [{"rid": "a", "date": 1000, "message": {"videoMessage": {"url": "x"}}}]},
+            anchor_ms=1000,
+        )
+    assert "message" in str(excinfo.value)
+
+
+def test_missing_message_key_raises():
+    with pytest.raises(RuntimeError):
+        _validate_history({"history": [{"rid": "a", "date": 1000}]}, anchor_ms=1000)
+
+
+def test_non_dict_message_raises():
+    with pytest.raises(RuntimeError):
+        _validate_history(
+            {"history": [{"rid": "a", "date": 1000, "message": "not-a-dict"}]},
+            anchor_ms=1000,
+        )
+
+
+def test_empty_dict_message_is_accepted_as_no_content():
+    # در داده واقعی message خالی هم دیده می‌شود (حدود ۰٫۱٪) و یعنی «بدون محتوا».
+    # این نباید اجرا را متوقف کند.
+    history = [{"rid": "a", "date": 1000, "message": {}}]
+    assert _validate_history({"history": history}, anchor_ms=1000) == history
+
+
+@pytest.mark.parametrize(
+    "message",
+    [{"emptyMessage": {}}, {"textMessage": {"text": "x"}}, {"documentMessage": {"caption": {"text": "x"}}}],
+)
+def test_known_message_shapes_are_accepted(message):
+    history = [{"rid": "a", "date": 1000, "message": message}]
+    assert _validate_history({"history": history}, anchor_ms=1000) == history
