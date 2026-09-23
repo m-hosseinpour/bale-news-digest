@@ -1,4 +1,5 @@
 import re
+import time
 
 from config import OPEN_AI_MODEL_NAME
 from model import NewsCategory
@@ -13,6 +14,19 @@ URL_PATTERN = re.compile(
 MENTION_PATTERN = re.compile(r"@[\w_]+")
 WHITESPACE_PATTERN = re.compile(r"\s+")
 
+# نشانه‌های بولد/ایتالیک مارک‌داون کانال (مثل *تیتر خبر*) که مدل‌ها را به
+# دستهٔ اشتباه می‌کشانند.
+MARKDOWN_PATTERN = re.compile(r"[*~`]+")
+
+# ایموجی‌ها و انتخابگرهای نمایش. ‌ (نیم‌فاصلهٔ فارسی) عمداً حذف نمی‌شود چون
+# بخشی از خود واژه است؛ فقط ‍ (ZWJ) که تقریباً فقط در ایموجی‌ها می‌آید.
+EMOJI_PATTERN = re.compile(
+    r"[\U0001F000-\U0001FAFF☀-➿⬀-⯿️⃣‍]+"
+)
+
+# تعداد تلاش مجدد وقتی گیتوی پاسخ ۲۰۰ اما بدون choices برمی‌گرداند.
+MAX_EMPTY_RESPONSE_RETRIES = 3
+
 SYSTEM_PROMPT = """You are a strict Persian news classifier. Output EXACTLY ONE lowercase label from this list and nothing else:
 war_conflict, advertisement, politics, economy, social, sports, culture_art, science_tech, unknown
 
@@ -21,6 +35,7 @@ CORE RULES:
 2. Do NOT choose unknown just because the text is short, ambiguous, missing a cause, or contains links. Choose the best news category.
 3. Use unknown ONLY if there is no meaningful news content, for example empty text, only links/emojis, or completely unintelligible text.
 4. If two categories are possible, choose the category that matches the main subject/entity, not a secondary detail. The speaker's title (minister, spokesperson, president, commander) is NEVER a category on its own — it only sets context. The actual subject of the news decides the category. A cabinet decision on pensions is economy; a presidential decree on a military operation is war_conflict.
+   - An official's ordinary visit, presence, or movement for a diplomatic or UN event (arriving, entering a building, attending a summit, or going somewhere to give a speech) is politics. This is war_conflict ONLY if the text itself describes a military action, strike, attack, or an official armed-forces statement about combat.
 5. Sanctions, embargoes, and economic isolation rule:
    - Choose politics when the news is about a government decision, official statement, diplomatic protest, or international dispute over sanctions/embargoes/economic isolation — even when the words "sanction" or "economic" appear in the text.
    - Choose economy only when the news is about the MARKET EFFECT of sanctions: price changes, trade volume, currency moves, supply disruptions, or business impacts.
@@ -115,6 +130,12 @@ Answer: social
 Text: سخنگوی دولت در نشست خبری هفتگی درباره سیاست‌های اقتصادی دولت توضیح داد
 Answer: politics
 
+Text: مسعود پزشکیان جهت ایراد سخنرانی وارد ساختمان سازمان ملل متحد شد
+Answer: politics
+
+Text: رئیس‌جمهور برای حضور در مجمع عمومی سازمان ملل وارد نیویورک شد
+Answer: politics
+
 CRITICAL:
 Output ONLY one lowercase category name. No explanation, no punctuation, no extra words.
 """
@@ -124,8 +145,28 @@ def _clean_text_for_classification(text: str) -> str:
     text = URL_PATTERN.sub(" ", text)
     text = MENTION_PATTERN.sub(" ", text)
     text = text.replace("|", " ")
+    text = MARKDOWN_PATTERN.sub(" ", text)
+    text = EMOJI_PATTERN.sub(" ", text)
     text = WHITESPACE_PATTERN.sub(" ", text)
     return text.strip()
+
+
+def _request_category(cleaned_text: str) -> str | None:
+    """یک فراخوانی مدل؛ None یعنی پاسخ خالی بود (نه خطای شبکه)."""
+    response = open_ai_client.chat.completions.create(
+        model=OPEN_AI_MODEL_NAME,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Text: {cleaned_text}\nAnswer:"},
+        ],
+        temperature=0.0,
+    )
+
+    if not response.choices:
+        return None
+
+    content = response.choices[0].message.content
+    return content.strip() if content else None
 
 
 def classify_news(news_text: str) -> NewsCategory | None:
@@ -135,17 +176,17 @@ def classify_news(news_text: str) -> NewsCategory | None:
         return None
 
     try:
-        response = open_ai_client.chat.completions.create(
-            model=OPEN_AI_MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Text: {cleaned_text}\nAnswer:"},
-            ],
-            temperature=0.0,
-        )
+        # گیتوی گاهی پاسخ ۲۰۰ اما بدون choices برمی‌گرداند؛ چند بار تلاش کن
+        # تا یک اجرا با یک پاسخ خالی وسط کار نخوابد.
+        for attempt in range(MAX_EMPTY_RESPONSE_RETRIES + 1):
+            raw_output = _request_category(cleaned_text)
+            if raw_output is not None:
+                return _parse_category(raw_output)
+            if attempt < MAX_EMPTY_RESPONSE_RETRIES:
+                print(f"⚠ پاسخ خالی از مدل؛ تلاش دوباره ({attempt + 1}/{MAX_EMPTY_RESPONSE_RETRIES})")
+                time.sleep(1)
 
-        raw_output = response.choices[0].message.content.strip()
-        return _parse_category(raw_output)
+        raise RuntimeError("مدل پس از چند تلاش پاسخ خالی برگرداند")
 
     except Exception as e:
         print(f"خطا در ارتباط با مدل: {e}")
