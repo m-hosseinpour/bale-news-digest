@@ -57,6 +57,58 @@ def test_empty_response_is_retried_then_succeeds(monkeypatch):
     assert calls["n"] == 3
 
 
+# پاسخ واقعی یک backend ضعیف: هیچ برچسبی از فهرست در آن نیست.
+CHINESE_REFUSAL = "关于这个问题，我没有相关信息，您可以尝试问我其它问题，我会尽力为您解答~"
+
+
+def test_response_without_label_is_retried_then_succeeds(monkeypatch):
+    monkeypatch.setattr(news_classifier.time, "sleep", lambda _s: None)
+
+    calls = {"n": 0}
+
+    def off_script(_text):
+        calls["n"] += 1
+        return CHINESE_REFUSAL if calls["n"] < 3 else "war_conflict"
+
+    monkeypatch.setattr(news_classifier, "_request_category", off_script)
+
+    assert classify_news("خبری برای طبقه‌بندی") is NewsCategory.WAR_CONFLICT
+    assert calls["n"] == 3
+
+
+def test_persistent_label_less_response_raises_after_retries(monkeypatch):
+    monkeypatch.setattr(news_classifier.time, "sleep", lambda _s: None)
+
+    calls = {"n": 0}
+
+    def always_off_script(_text):
+        calls["n"] += 1
+        return CHINESE_REFUSAL
+
+    monkeypatch.setattr(news_classifier, "_request_category", always_off_script)
+
+    with pytest.raises(RuntimeError):
+        classify_news("خبری برای طبقه‌بندی")
+
+    assert calls["n"] == news_classifier.MAX_BAD_RESPONSE_RETRIES + 1
+
+
+def test_unknown_label_is_a_verdict_not_a_failure(monkeypatch):
+    """«unknown» نظر مدل است و نباید مثل پاسخ بد دوباره تلاش شود."""
+    monkeypatch.setattr(news_classifier.time, "sleep", lambda _s: None)
+
+    calls = {"n": 0}
+
+    def says_unknown(_text):
+        calls["n"] += 1
+        return "unknown"
+
+    monkeypatch.setattr(news_classifier, "_request_category", says_unknown)
+
+    assert classify_news("تقویم امروز شنبه ۲۸ شهریور ۱۴۰۵") is NewsCategory.UNKNOWN
+    assert calls["n"] == 1
+
+
 def test_persistent_empty_response_raises_after_retries(monkeypatch):
     monkeypatch.setattr(news_classifier.time, "sleep", lambda _s: None)
 
@@ -71,5 +123,5 @@ def test_persistent_empty_response_raises_after_retries(monkeypatch):
     with pytest.raises(RuntimeError):
         classify_news("خبری برای طبقه‌بندی")
 
-    # یک تلاش اولیه + MAX_EMPTY_RESPONSE_RETRIES تلاش مجدد
-    assert calls["n"] == news_classifier.MAX_EMPTY_RESPONSE_RETRIES + 1
+    # یک تلاش اولیه + MAX_BAD_RESPONSE_RETRIES تلاش مجدد
+    assert calls["n"] == news_classifier.MAX_BAD_RESPONSE_RETRIES + 1

@@ -24,8 +24,9 @@ EMOJI_PATTERN = re.compile(
     r"[\U0001F000-\U0001FAFF☀-➿⬀-⯿️⃣‍]+"
 )
 
-# تعداد تلاش مجدد وقتی گیتوی پاسخ ۲۰۰ اما بدون choices برمی‌گرداند.
-MAX_EMPTY_RESPONSE_RETRIES = 3
+# تعداد تلاش مجدد وقتی پاسخ مدل قابل استفاده نیست: یا خالی است (گیتوی پاسخ
+# ۲۰۰ اما بدون choices می‌دهد) یا هیچ برچسب معتبری از فهرست در آن نیست.
+MAX_BAD_RESPONSE_RETRIES = 3
 
 SYSTEM_PROMPT = """You are a strict Persian news classifier. Output EXACTLY ONE lowercase label from this list and nothing else:
 war_conflict, advertisement, politics, economy, social, sports, culture_art, science_tech, unknown
@@ -179,25 +180,34 @@ def classify_news(news_text: str) -> NewsCategory | None:
         return None
 
     try:
-        # گیتوی گاهی پاسخ ۲۰۰ اما بدون choices برمی‌گرداند؛ چند بار تلاش کن
-        # تا یک اجرا با یک پاسخ خالی وسط کار نخوابد.
-        for attempt in range(MAX_EMPTY_RESPONSE_RETRIES + 1):
+        # خروجی خالی یا بی‌برچسب (مثلاً یک پاسخ چینی) نظر مدل نیست، شکست است؛
+        # چند بار تلاش کن تا یک اجرا با یک پاسخ بد وسط کار نخوابد.
+        for attempt in range(MAX_BAD_RESPONSE_RETRIES + 1):
             raw_output = _request_category(cleaned_text)
-            if raw_output is not None:
-                return _parse_category(raw_output)
-            if attempt < MAX_EMPTY_RESPONSE_RETRIES:
-                print(f"⚠ پاسخ خالی از مدل؛ تلاش دوباره ({attempt + 1}/{MAX_EMPTY_RESPONSE_RETRIES})")
+            category = _match_category(raw_output) if raw_output is not None else None
+            if category is not None:
+                return category
+            if attempt < MAX_BAD_RESPONSE_RETRIES:
+                reason = "خالی" if raw_output is None else "بدون برچسب معتبر"
+                print(
+                    f"⚠ پاسخ {reason} از مدل؛ تلاش دوباره "
+                    f"({attempt + 1}/{MAX_BAD_RESPONSE_RETRIES})"
+                )
                 time.sleep(1)
 
-        raise RuntimeError("مدل پس از چند تلاش پاسخ خالی برگرداند")
+        raise RuntimeError("مدل پس از چند تلاش برچسب معتبری برنگرداند")
 
     except Exception as e:
         print(f"خطا در ارتباط با مدل: {e}")
         raise e
 
 
-def _parse_category(raw_output: str) -> NewsCategory:
-    """خروجی خام مدل را به Enum تبدیل می‌کند (با تحمل خطای مدل‌های ضعیف)."""
+def _match_category(raw_output: str) -> NewsCategory | None:
+    """برچسب معتبر را از خروجی خام مدل درمی‌آورد (با تحمل خطای مدل‌های ضعیف).
+
+    None یعنی هیچ برچسبی از فهرست در خروجی نبود — این با UNKNOWN فرق دارد:
+    UNKNOWN نظر مدل است، None یعنی پاسخ قابل استفاده نبود.
+    """
     # تطابق دقیق
     for category in NewsCategory:
         if category.value == raw_output:
@@ -210,7 +220,7 @@ def _parse_category(raw_output: str) -> NewsCategory:
         if category.value in raw_output:
             return category
 
-    return NewsCategory.UNKNOWN
+    return None
 
 
 # تست
