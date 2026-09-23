@@ -40,15 +40,35 @@ IMPORTANT_CATEGORIES: list[NewsCategory] = [
 
 CHANNEL_SLUG = os.getenv("CHANNEL_SLUG", "akharinkhabar")
 
+_INT32_MAX = 2**31 - 1
+
+
+def _parse_peer_id(raw: str | None) -> int | None:
+    """PEER_ID را از رشتهٔ env می‌سازد؛ None یعنی تنظیم‌نشده یا نامعتبر.
+
+    API بله آیدی را در int32 می‌خواهد و مقدار بیرون بازه را با خطای مبهم Go رد
+    می‌کند؛ پس همین‌جا می‌گیریم تا پیام واضح بدهیم.
+    """
+    if not raw:
+        return None
+
+    try:
+        peer_id = int(raw)
+    except ValueError:
+        print("⚠ مقدار PEER_ID نامعتبر است؛ برای یافتنش scripts/resolve_peer_id.py را اجرا کن.")
+        return None
+
+    if not -_INT32_MAX - 1 <= peer_id <= _INT32_MAX:
+        print(f"⚠ مقدار PEER_ID={peer_id} بیرون بازهٔ int32 است؛ برای یافتنش scripts/resolve_peer_id.py را اجرا کن.")
+        return None
+
+    return peer_id
+
+
 # آیدی داخلی کانال (نه آیدی Bot API) که از env خوانده می‌شود و در زمان اجرا
 # هیچ‌وقت دوباره کشف نمی‌شود. اگر تنظیم نشده باشد، news_collector با خطای
 # واضح فارسی کاربر را به scripts/resolve_peer_id.py هدایت می‌کند.
-_RAW_PEER_ID = os.getenv("PEER_ID")
-try:
-    PEER_ID = int(_RAW_PEER_ID) if _RAW_PEER_ID else None
-except ValueError:
-    print("⚠ مقدار PEER_ID نامعتبر است؛ برای یافتنش scripts/resolve_peer_id.py را اجرا کن.")
-    PEER_ID = None
+PEER_ID = _parse_peer_id(os.getenv("PEER_ID"))
 
 MAX_PAGES_PER_RUN = _env_int("MAX_PAGES_PER_RUN", 50)
 MAX_POSTS_PER_RUN = _env_int("MAX_POSTS_PER_RUN", 500)
