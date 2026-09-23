@@ -4,7 +4,7 @@
 
 ## امکانات
 
-- جمع‌آوری پیام‌های جدید کانال با Playwright و Chromium headless
+- جمع‌آوری پیام‌های جدید کانال از API عمومی وب بله (بدون مرورگر)
 - دسته‌بندی اخبار با OpenAI-compatible API
 - خلاصه‌سازی اخبار مهم و ارسال به کانال با بات بله
 - ذخیره پیام‌های دیده‌شده در `news_posts.json`
@@ -14,33 +14,9 @@
 
 - Python 3.11+
 - uv
-- Chromium (بخش «نصب مرورگر» را ببین؛ نیازی به مرورگر سیستمی نیست)
 
-## نصب مرورگر
-
-حالت استاندارد، مرورگر بستهٔ خود Playwright است:
-
-```shell
-uv run playwright install --with-deps chromium
-```
-
-> **اگر سرور داخل ایران است:** هم CDN رسمی Playwright
-> (`cdn.playwright.dev`) و هم مخزن Google برای Chrome for Testing با
-> geo-block یعنی `403 Access denied` رد می‌شوند. در این حالت از
-> `install_chromium.py` استفاده کن. این اسکریپت همان Chromium را از
-> registry پکیج‌های npm برمی‌دارد — پکیج `@sparticuz/chromium` باینری را
-> داخل خود tarball دارد، پس به هیچ CDN بلاک‌شده‌ای وابسته نیست:
->
-> ```shell
-> uv run python install_chromium.py
-> ```
->
-> خروجی در `~/.cache/playwright-chromium/` می‌نشیند و `config.py` خودش
-> پیدایش می‌کند. اگر میرور پیش‌فرض npm کند بود، با `NPM_REGISTRY` عوضش کن:
->
-> ```shell
-> NPM_REGISTRY=https://registry.npmmirror.com uv run python install_chromium.py
-> ```
+نیازی به مرورگر، Chromium یا Playwright نیست: جمع‌آوری از طریق
+`POST https://api.ble.ir/api/v1/LoadHistory` انجام می‌شود.
 
 ## نصب پروژه
 
@@ -49,7 +25,7 @@ uv sync
 cp .env.example .env
 ```
 
-سپس `.env` را ویرایش کن.
+## تنظیمات `.env`
 
 حداقل مقادیر لازم:
 
@@ -57,6 +33,40 @@ cp .env.example .env
 BALE_BOT_TOKEN=
 BALE_BOT_CHAT_ID=
 OPEN_AI_API_KEY=
+CHANNEL_SLUG=akharinkhabar
+PEER_ID=533692756
+```
+
+### پیدا کردن `PEER_ID`
+
+آیدی داخلی کانال در API بله **با آیدی Bot API یکی نیست** و باید یک‌بار استخراج شود.
+اسکریپت زیر این کار را انجام می‌دهد:
+
+```shell
+uv run python scripts/resolve_peer_id.py akharinkhabar
+```
+
+خروجی چیزی شبیه این است:
+
+```text
+✓ آیدی داخلی کانال akharinkhabar: 533692756
+این خط را در .env بگذار:
+PEER_ID=533692756
+```
+
+همان خط را در `.env` کپی کن. ربات در زمان اجرا دیگر این مقدار را دوباره کشف نمی‌کند؛
+اگر `PEER_ID` تنظیم نشده باشد، اجرا با یک خطای واضح فارسی متوقف می‌شود.
+
+`CHANNEL_SLUG` نام عمومی کانال است و هم برای ساخت لینک خبر و هم برای حذف امضای
+تبلیغاتی کانال از متن استفاده می‌شود.
+
+### سایر کلیدهای اختیاری
+
+```env
+MAX_PAGES_PER_RUN=50      # سقف صفحه در هر اجرا (هر صفحه ۱۰ پیام)
+MAX_POSTS_PER_RUN=500     # سقف پست جدید در هر اجرا
+HISTORY_PAGE_SLEEP=0.3    # مکث بین صفحه‌ها (ثانیه)
+HTTP_TIMEOUT=30           # timeout درخواست‌ها (ثانیه)
 ```
 
 اگر از webhook ربات استفاده می‌کنی:
@@ -64,6 +74,10 @@ OPEN_AI_API_KEY=
 ```env
 PUBLIC_WEBHOOK_URL=https://your-domain.com/webhook
 ```
+
+برای هر دستهٔ مهم می‌توانی کانال اختصاصی بدهی
+(`BALE_BOT_CHAT_ID_WAR_CONFLICT`, `BALE_BOT_CHAT_ID_POLITICS`,
+`BALE_BOT_CHAT_ID_ECONOMY`, `BALE_BOT_CHAT_ID_SCIENCE_TECH`).
 
 ## اجرای اصلی: دریافت و ارسال خلاصه اخبار
 
@@ -77,6 +91,22 @@ uv run python main.py
 
 ```cron
 0 * * * * cd /path/to/project && /path/to/uv run python main.py >> logs/run.log 2>&1
+```
+
+## تست‌ها
+
+تست‌های واحد به شبکه کاری ندارند:
+
+```shell
+uv run pytest
+```
+
+برای بررسی سلامت جمع‌آوری روی داده واقعی (شمارش نوع پیام‌ها و نرخ تطبیق `sid`
+با `news_posts.json`):
+
+```shell
+uv run python scripts/verify_collector.py        # ۱۰۰ پیام آخر
+uv run python scripts/verify_collector.py 300    # یا هر تعداد دلخواه
 ```
 
 ## اجرای webhook ربات
@@ -116,5 +146,6 @@ uv run python set_webhook.py
 ## نکات
 
 - خروجی اجرا در لاگ و در `news_posts.json` ذخیره می‌شود.
-- اگر سرور RAM کمی دارد، مقادیری مثل `MAX_SCROLLS` و `MAX_DRIVER_REUSE` را در `.env` کمتر کن.
+- `sid` هر پست دقیقاً `"{rid}-{date}"` است، همان چیزی که API بله می‌دهد؛ همین
+  باعث می‌شود dedup با `news_posts.json` بدون تغییر کار کند و خبری دوباره ارسال نشود.
 - برای پاسخ‌دهی ربات در PV، حتماً سرور باید با HTTPS در دسترس باشد.

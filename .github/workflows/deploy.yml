@@ -38,11 +38,6 @@ jobs:
 
           uv sync
 
-          # CDN رسمی Playwright برای دانلود مرورگر داخل ایران geo-block است،
-          # پس Chromium را install_chromium.py از registry پکیج‌های npm
-          # برمی‌دارد. خود اسکریپت retry دارد و idempotent است.
-          uv run python install_chromium.py
-
           sudo systemctl restart news-bot-webhook.service
           sleep 2
           sudo systemctl status news-bot-webhook.service --no-pager
