@@ -1,6 +1,6 @@
 import pytest
 
-from model import NewsCategory, NewsPost
+from model import MediaKind, NewsCategory, NewsPost
 from news_collector import _ensure_peer_id, fetch_new_posts
 import news_collector
 
@@ -167,6 +167,41 @@ def test_fetch_new_posts_propagates_network_error(monkeypatch):
 
     with pytest.raises(RuntimeError):
         list(fetch_new_posts(set()))
+
+
+def test_fetch_new_posts_attaches_media(monkeypatch):
+    monkeypatch.setattr(news_collector, "PEER_ID", 1)
+    monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
+    monkeypatch.setattr(news_collector, "classify_news", lambda text: None)
+
+    url = "https://file-gw1.ble.ir/proxy_download/abc=?u=def"
+    pages = [
+        [
+            {
+                "rid": "1",
+                "date": 2000,
+                "message": {
+                    "documentMessage": {
+                        "url": url,
+                        "mimeType": "image/jpeg",
+                        "caption": {"text": "خبر با عکس"},
+                    }
+                },
+            },
+            _entry("2", 1990, "خبر بدون ضمیمه"),
+        ],
+        [],
+    ]
+    monkeypatch.setattr(news_collector, "load_history", lambda peer_id, date: pages.pop(0))
+
+    posts = list(fetch_new_posts(set()))
+
+    with_media = next(p for p in posts if p.sid == "1-2000")
+    without_media = next(p for p in posts if p.sid == "2-1990")
+    assert with_media.media_url == url
+    assert with_media.media_kind is MediaKind.PHOTO
+    assert without_media.media_url is None
+    assert without_media.media_kind is None
 
 
 def test_news_post_model_roundtrip_for_negative_rid():

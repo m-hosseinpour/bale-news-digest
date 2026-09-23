@@ -1,4 +1,4 @@
-from bale_bot_message_sender import send_message
+from bale_bot_message_sender import send_post
 from config import (
     BALE_BOT_CHAT_ID,
     CATEGORY_CHAT_IDS,
@@ -32,7 +32,7 @@ def dispatch_post(post: NewsPost) -> None:
     print(message)
 
     for chat_id in _targets_for_post(post):
-        send_message(message, chat_id)
+        send_post(message, post.media_url, post.media_kind, chat_id)
 
 
 def run_once() -> None:

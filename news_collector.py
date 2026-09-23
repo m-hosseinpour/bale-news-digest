@@ -13,7 +13,7 @@ from config import (
     MAX_POSTS_PER_RUN,
     PEER_ID,
 )
-from model import NewsCategory, NewsPost
+from model import MediaKind, NewsCategory, NewsPost
 from news_classifier import classify_news
 
 API_URL = "https://api.ble.ir/api/v1/LoadHistory"
@@ -178,6 +178,41 @@ def load_history(peer_id: int, date_ms: int) -> list[dict]:
 KNOWN_MESSAGE_KINDS = ("textMessage", "documentMessage", "emptyMessage")
 
 
+def extract_media(message: dict) -> tuple[str, MediaKind] | None:
+    """(url, kind) ضمیمهٔ پیام را برمی‌گرداند یا None اگر ضمیمه‌ای نیست.
+
+    عکس و ویدیو هم به شکل documentMessage می‌آیند (نه photoMessage/videoMessage)،
+    پس نوع از روی mimeType تعیین می‌شود، نه از روی نام شکل پیام.
+
+    url یک لینک امضاشدهٔ عمومی است؛ خود بله هنگام ارسال از همان دانلود می‌کند و
+    file_id ندارد که بتوان دوباره استفاده کرد (LoadHistory هیچ file_id نمی‌دهد).
+    """
+    if not isinstance(message, dict):
+        return None
+
+    document_message = message.get("documentMessage")
+    if not isinstance(document_message, dict):
+        return None
+
+    url = document_message.get("url")
+    if not isinstance(url, str) or not url:
+        return None
+
+    mime = document_message.get("mimeType")
+    mime = mime.lower() if isinstance(mime, str) else ""
+
+    if mime.startswith("image/"):
+        kind = MediaKind.PHOTO
+    elif mime.startswith("video/"):
+        kind = MediaKind.VIDEO
+    elif mime.startswith("audio/"):
+        kind = MediaKind.AUDIO
+    else:
+        kind = MediaKind.DOCUMENT
+
+    return url, kind
+
+
 def extract_text(message: dict) -> str:
     """متن پیام را از هر شکل آن بیرون می‌کشد.
 
@@ -277,6 +312,9 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
             if not text:
                 continue
 
+            media = extract_media(entry["message"])
+            media_url, media_kind = media if media else (None, None)
+
             category: NewsCategory | None = None
             try:
                 category = classify_news(text)
@@ -290,7 +328,13 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
             print(f"🆔 {sid}")
 
             new_posts += 1
-            yield NewsPost(sid=sid, text=text, category=category)
+            yield NewsPost(
+                sid=sid,
+                text=text,
+                category=category,
+                media_url=media_url,
+                media_kind=media_kind,
+            )
 
             if new_posts >= MAX_POSTS_PER_RUN:
                 print(f"⚠ به سقف {MAX_POSTS_PER_RUN} پست جدید رسیدیم")

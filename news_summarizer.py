@@ -2,13 +2,23 @@ import re
 import time
 
 from config import CHANNEL_SLUG, OPEN_AI_MODEL_NAME
-from model import NewsCategory, NewsPost
+from model import MediaKind, NewsCategory, NewsPost
 from open_ai_client_provider import open_ai_client
 
 # تعداد تلاش مجدد وقتی گیتوی پاسخ ۲۰۰ اما بدون choices برمی‌گرداند.
 MAX_EMPTY_RESPONSE_RETRIES = 3
 
 BALE_POST_LINK_TEMPLATE = f"https://ble.ir/{CHANNEL_SLUG}/{{post_id}}"
+
+LINK_LABEL = "لینک خبر مرجع"
+
+# برچسب ضمیمه که به مدل داده می‌شود (بدون فرستادن خود فایل یا لینکش).
+MEDIA_KIND_LABELS = {
+    MediaKind.PHOTO: "عکس",
+    MediaKind.VIDEO: "ویدیو",
+    MediaKind.AUDIO: "فایل صوتی",
+    MediaKind.DOCUMENT: "فایل",
+}
 
 SYSTEM_PROMPT = """You are a professional Persian news summarizer.
 The input text contains a single news item.
@@ -59,16 +69,32 @@ If the input text cannot be summarized as news (e.g., it is just a description o
 - NEVER write phrases like "this text is not news", "please send a news text", "this text cannot be summarized", or similar error/explanation messages.
 - Instead, return the EXACT original input text unchanged.
 - This is an absolute rule; never output an error message, explanation, or request to send new text.
+
+CRITICAL RULE FOR POSTS WITH AN ATTACHMENT:
+Some posts carry an attachment (photo, video, audio, or file) whose content you cannot see. When the input notes such an attachment:
+- Treat the attachment as supporting context of the same news item, so your summary reflects that the post is a full news item rather than a bare sentence.
+- NEVER mention the attachment in the summary: no words like "عکس", "تصویر", "فیلم", "ویدیو", "کلیپ", "صوت", "فایل", "ضمیمه", "منتشر شده", "در ادامه می‌بینید", nor any phrase pointing the reader to a picture or clip.
+- The summary must read exactly like any other text-only news summary.
 """
 
 
-def _request_summary(news_text: str) -> str | None:
+def _media_hint(media_kind: MediaKind | None) -> str:
+    """یادداشت متنی دربارهٔ وجود ضمیمه — خود فایل یا لینکش فرستاده نمی‌شود."""
+    if media_kind is None:
+        return ""
+    label = MEDIA_KIND_LABELS.get(media_kind)
+    if not label:
+        return ""
+    return f"\n\n[این خبر همراه یک {label} است.]"
+
+
+def _request_summary(news_text: str, media_kind: MediaKind | None = None) -> str | None:
     """یک فراخوانی مدل؛ None یعنی پاسخ خالی بود (نه خطای شبکه)."""
     response = open_ai_client.chat.completions.create(
         model=OPEN_AI_MODEL_NAME,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": news_text},
+            {"role": "user", "content": news_text + _media_hint(media_kind)},
         ],
         temperature=0.0,
         timeout=300,
@@ -81,7 +107,9 @@ def _request_summary(news_text: str) -> str | None:
     return content.strip() if content else None
 
 
-def summarize_news_posts(news_text: str) -> str | None:
+def summarize_news_posts(
+    news_text: str, media_kind: MediaKind | None = None
+) -> str | None:
     news_text_strip = news_text.strip()
     if not news_text_strip:
         return None
@@ -90,7 +118,7 @@ def summarize_news_posts(news_text: str) -> str | None:
         # گیتوی گاهی پاسخ ۲۰۰ اما بدون choices برمی‌گرداند؛ چند بار تلاش کن
         # تا یک اجرا با یک پاسخ خالی وسط کار نخوابد.
         for attempt in range(MAX_EMPTY_RESPONSE_RETRIES + 1):
-            content = _request_summary(news_text)
+            content = _request_summary(news_text, media_kind)
             if content is not None:
                 return content
             if attempt < MAX_EMPTY_RESPONSE_RETRIES:
@@ -151,7 +179,7 @@ def summarize_single_post(post: NewsPost) -> str:
     text = post.text.strip()
     if len(text) < SHORT_TEXT_THRESHOLD:
         return _clean_short_text(text)
-    return summarize_news_posts(text) or text
+    return summarize_news_posts(text, post.media_kind) or text
 
 
 def _post_link(post: NewsPost) -> str:
@@ -161,7 +189,8 @@ def _post_link(post: NewsPost) -> str:
 
 
 def compose_message(post: NewsPost, summary: str) -> str:
-    return f"{summary}\n\nلینک خبر مرجع:\n{_post_link(post)}"
+    """متن خلاصه دست‌نخورده، و خط آخر یک لینک مارک‌داون."""
+    return f"{summary}\n\n[{LINK_LABEL}]({_post_link(post)})"
 
 
 # تست

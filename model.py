@@ -15,10 +15,19 @@ class NewsCategory(str, Enum):
     UNKNOWN = "unknown"  # fallback
 
 
+class MediaKind(str, Enum):
+    PHOTO = "photo"
+    VIDEO = "video"
+    AUDIO = "audio"
+    DOCUMENT = "document"
+
+
 class NewsPost(BaseModel):
     sid: str
     text: str
     category: NewsCategory | None
+    media_url: str | None = None
+    media_kind: MediaKind | None = None
 
     @field_validator("category", mode="before")
     @classmethod
@@ -27,5 +36,15 @@ class NewsPost(BaseModel):
             return v
         try:
             return NewsCategory(v)
+        except ValueError:
+            return None
+
+    @field_validator("media_kind", mode="before")
+    @classmethod
+    def fallback_media_kind(cls, v):
+        if v is None or isinstance(v, MediaKind):
+            return v
+        try:
+            return MediaKind(v)
         except ValueError:
             return None

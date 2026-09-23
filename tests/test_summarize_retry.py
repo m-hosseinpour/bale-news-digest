@@ -9,7 +9,7 @@ def test_empty_response_is_retried_then_succeeds(monkeypatch):
 
     calls = {"n": 0}
 
-    def flaky(_text):
+    def flaky(_text, _media_kind=None):
         calls["n"] += 1
         return None if calls["n"] < 3 else "خلاصهٔ خبر"
 
@@ -24,7 +24,7 @@ def test_persistent_empty_response_raises_after_retries(monkeypatch):
 
     calls = {"n": 0}
 
-    def always_empty(_text):
+    def always_empty(_text, _media_kind=None):
         calls["n"] += 1
         return None
 
