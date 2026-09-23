@@ -1,8 +1,12 @@
 import re
+import time
 
 from config import CHANNEL_SLUG, OPEN_AI_MODEL_NAME
 from model import NewsCategory, NewsPost
 from open_ai_client_provider import open_ai_client
+
+# تعداد تلاش مجدد وقتی گیتوی پاسخ ۲۰۰ اما بدون choices برمی‌گرداند.
+MAX_EMPTY_RESPONSE_RETRIES = 3
 
 BALE_POST_LINK_TEMPLATE = f"https://ble.ir/{CHANNEL_SLUG}/{{post_id}}"
 
@@ -58,25 +62,43 @@ If the input text cannot be summarized as news (e.g., it is just a description o
 """
 
 
+def _request_summary(news_text: str) -> str | None:
+    """یک فراخوانی مدل؛ None یعنی پاسخ خالی بود (نه خطای شبکه)."""
+    response = open_ai_client.chat.completions.create(
+        model=OPEN_AI_MODEL_NAME,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": news_text},
+        ],
+        temperature=0.0,
+        timeout=300,
+    )
+
+    if not response.choices:
+        return None
+
+    content = response.choices[0].message.content
+    return content.strip() if content else None
+
+
 def summarize_news_posts(news_text: str) -> str | None:
     news_text_strip = news_text.strip()
     if not news_text_strip:
         return None
 
     try:
-        response = open_ai_client.chat.completions.create(
-            model=OPEN_AI_MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": news_text},
-            ],
-            temperature=0.0,
-            timeout=300,
-        )
-        content = response.choices[0].message.content.strip()
-        if not content:
-            raise RuntimeError("جواب هوش مصنوعی خالی بود")
-        return content
+        # گیتوی گاهی پاسخ ۲۰۰ اما بدون choices برمی‌گرداند؛ چند بار تلاش کن
+        # تا یک اجرا با یک پاسخ خالی وسط کار نخوابد.
+        for attempt in range(MAX_EMPTY_RESPONSE_RETRIES + 1):
+            content = _request_summary(news_text)
+            if content is not None:
+                return content
+            if attempt < MAX_EMPTY_RESPONSE_RETRIES:
+                print(f"⚠ پاسخ خالی از مدل؛ تلاش دوباره ({attempt + 1}/{MAX_EMPTY_RESPONSE_RETRIES})")
+                time.sleep(1)
+
+        raise RuntimeError("جواب هوش مصنوعی پس از چند تلاش خالی بود")
+
     except Exception as e:
         print(f"خطا در ارتباط با مدل: {e}")
         raise e

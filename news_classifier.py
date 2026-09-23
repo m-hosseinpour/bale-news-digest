@@ -48,7 +48,7 @@ CORE RULES:
      * unexplained disruptions in conflict-prone regions (e.g., Jeddah airport, Red Sea incidents).
    - HOWEVER, mentions of strategic locations (Strait of Hormuz, borders, seas) DO NOT automatically mean war_conflict. If the text is about the situation of citizens, fishermen, sailors, trade, or weather in these areas, choose social or economy.
    - politics covers ONLY non-operational military news: military budgets, appointments, promotions, parades, ceremonies, arms deals, defense diplomacy, and similar administrative/political topics. An operational military statement about combat power, deterrence, or threat response is war_conflict, NOT politics.
-   - If it is only a civilian transport/aviation/maritime accident with no security clue, choose social.
+   - A civilian transport, aviation, or maritime accident with no security clue (a passenger airliner crash, an airport/flight disruption) is social. But a crash or downing of a MILITARY aircraft — a fighter jet (جنگنده), military drone (پهپاد), or army aircraft — is war_conflict, not a civilian accident.
    - Explosions rule: an explosion is war_conflict ONLY if it is a deliberate attack (bombing, shelling, strike, demolition) OR involves military ordnance/weapons. An explosion that results from a civilian fire, industrial accident, gas leak, fuel depot, or other non-military cause is social, even if the country is a conflict zone. The location (Afghanistan, Syria, Iraq) is irrelevant on its own — the CAUSE of the explosion decides.
 7. Sports rule:
    - If the main entity is a sports organization, athlete, team, federation, FIFA, or sports official, choose sports, even if the news is about corruption, investigation, dismissal, or controversy.
@@ -129,6 +129,9 @@ Answer: social
 
 Text: سخنگوی دولت در نشست خبری هفتگی درباره سیاست‌های اقتصادی دولت توضیح داد
 Answer: politics
+
+Text: تصاویر جدید از لحظه سقوط جنگنده انگلیسی
+Answer: war_conflict
 
 Text: مسعود پزشکیان جهت ایراد سخنرانی وارد ساختمان سازمان ملل متحد شد
 Answer: politics
