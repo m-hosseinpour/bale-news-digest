@@ -117,6 +117,21 @@ def _validate_history(payload: object, anchor_ms: int) -> list[dict]:
     return history
 
 
+def _ensure_page_progress(history: list[dict], seen_rids: set[str]) -> None:
+    """صفحهٔ تازه باید حداقل یک پیام ندیده داشته باشد.
+
+    این گارد تلهٔ اصلی را می‌گیرد: اگر منهای یک در `anchor = min(date) - 1` جا
+    بیفتد، سرور همان ۱۰ پیام قبلی را برمی‌گرداند و حلقه بی‌نهایت (یا تا سقف
+    صفحه) روی یک صفحه می‌ماند.
+    """
+    if all(entry["rid"] in seen_rids for entry in history):
+        raise RuntimeError(
+            "⛔ صفحه‌بندی جلو نمی‌رود: صفحهٔ دریافتی هیچ پیام جدیدی نداشت "
+            f"(rid تکراری، min(date)={min(entry['date'] for entry in history)}). "
+            "قرارداد صفحه‌بندی LoadHistory عوض شده است."
+        )
+
+
 def load_history(peer_id: int, date_ms: int) -> list[dict]:
     """یک صفحه از تاریخچه (حداکثر ۱۰ پیام) را برمی‌گرداند."""
     try:
@@ -216,6 +231,9 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
         if not history:
             print("✓ به انتهای تاریخچهٔ کانال رسیدیم")
             return
+
+        if page_index:
+            _ensure_page_progress(history, seen_rids)
 
         reached_old_post = False
 

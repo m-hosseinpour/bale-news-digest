@@ -135,6 +135,24 @@ def test_fetch_new_posts_respects_post_cap(monkeypatch):
     assert len(posts) == 3
 
 
+def test_fetch_new_posts_raises_when_pagination_stalls(monkeypatch):
+    # اگر منهای یک در anchor جا بیفتد، سرور همان صفحه را برمی‌گرداند و
+    # بدون این گارد حلقه تا سقف MAX_PAGES_PER_RUN روی یک صفحه می‌ماند.
+    monkeypatch.setattr(news_collector, "PEER_ID", 1)
+    monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
+    monkeypatch.setattr(news_collector, "classify_news", lambda text: None)
+    monkeypatch.setattr(
+        news_collector,
+        "load_history",
+        lambda peer_id, date: [_entry("2", 2000, "الف"), _entry("1", 1990, "ب")],
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        list(fetch_new_posts(set()))
+
+    assert "صفحه‌بندی" in str(excinfo.value)
+
+
 def test_fetch_new_posts_propagates_network_error(monkeypatch):
     monkeypatch.setattr(news_collector, "PEER_ID", 1)
     monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
