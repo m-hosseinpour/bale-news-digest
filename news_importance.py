@@ -60,7 +60,9 @@ trivial = not really news:
 
 If the text is a digest — a list of several separate short news items (for example a "آخرین خبرهای کوتاه" post) — judge the MOST IMPORTANT single item in that list and answer with ITS importance, not with the average of the list.
 
-Most items are normal, not major. Choose major ONLY when the text describes a concrete event that has already happened with consequences. A statement, speech, opinion, prediction, threat, or the announcement of something that WILL happen is NOT major, even when the topic is war, politics, or the economy. An unexplained or unclear incident is normal, not major, until the text itself says what happened and what it cost. Judge only the main news content, not the poster's tone or the emojis. Output ONLY the one word."""
+Most items are normal, not major. Choose major ONLY when the text describes a concrete event that has already happened with consequences. A statement, speech, opinion, prediction, threat, or the announcement of something that WILL happen is NOT major, even when the topic is war, politics, or the economy. An unexplained or unclear incident is normal, not major, until the text itself says what happened and what it cost. Judge only the main news content, not the poster's tone or the emojis.
+
+CRITICAL: Output ONLY the one lowercase word — major, normal, or trivial. No explanation, no punctuation, no list, no extra words. Do not repeat the list of options; write the single word that answers."""
 
 
 def _clean_text(text: str) -> str:
