@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Bale News Digest">
+  <title>Bale News Digest — radar</title>
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5E97A2"/>
+      <stop offset=".55" stop-color="#3F7381"/>
+      <stop offset="1" stop-color="#2B5866"/>
+    </linearGradient>
+    <radialGradient id="scope" cx=".5" cy=".4" r=".75">
+      <stop offset="0" stop-color="#2A6474"/>
+      <stop offset="1" stop-color="#153C49"/>
+    </radialGradient>
+    <linearGradient id="sweep" gradientUnits="userSpaceOnUse" x1="512" y1="512" x2="852" y2="196">
+      <stop offset="0" stop-color="#9CF3E2" stop-opacity=".62"/>
+      <stop offset=".6" stop-color="#9CF3E2" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#9CF3E2" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="blip" cx=".38" cy=".32" r=".9">
+      <stop offset="0" stop-color="#FFD6DA"/>
+      <stop offset=".42" stop-color="#FF3548"/>
+      <stop offset="1" stop-color="#BE0F28"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#plate)"/>
+
+  <circle cx="512" cy="512" r="422" fill="url(#scope)"/>
+  <circle cx="512" cy="512" r="422" fill="none" stroke="#E4F5F1" stroke-opacity=".65" stroke-width="30"/>
+  <circle cx="512" cy="512" r="386" fill="none" stroke="#0F333D" stroke-opacity=".5" stroke-width="12"/>
+
+  <g stroke="#DCF1EE" fill="none">
+    <circle cx="512" cy="512" r="286" stroke-opacity=".30" stroke-width="14"/>
+    <circle cx="512" cy="512" r="182" stroke-opacity=".34" stroke-width="14"/>
+    <circle cx="512" cy="512" r="86" stroke-opacity=".38" stroke-width="14"/>
+  </g>
+
+  <path d="M512 512 L870 512 A358 358 0 0 0 776 277 Z" fill="url(#sweep)"/>
+  <path d="M512 512 L836 286" stroke="#B6F5E9" stroke-width="30" stroke-linecap="round"/>
+
+  <circle cx="716" cy="430" r="106" fill="none" stroke="#FFB8C0" stroke-opacity=".5" stroke-width="16"/>
+  <circle cx="716" cy="430" r="66" fill="url(#blip)"/>
+  <circle cx="716" cy="430" r="66" fill="none" stroke="#FFF0F1" stroke-width="10"/>
+
+  <circle cx="222" cy="352" r="30" fill="#EAF6F4"/>
+  <circle cx="512" cy="512" r="22" fill="#EAF6F4"/>
+</svg>
