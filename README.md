@@ -128,6 +128,22 @@ uv run python scripts/verify_collector.py        # ۱۰۰ پیام آخر
 uv run python scripts/verify_collector.py 300    # یا هر تعداد دلخواه
 ```
 
+برای سنجش اثر یک تغییر در پرامپت خلاصه‌ساز، طول خلاصه روی نمونه‌ای از
+پست‌های واقعی اندازه‌گیری می‌شود (طول، تعداد جمله، و نرخ حفظ عددهای متن اصلی).
+اول نمونه را با پرامپت فعلی فریز کن، بعد از تغییر پرامپت همان نمونه را دوباره
+بسنج:
+
+```shell
+uv run python scripts/measure_summary_length.py --out measurements/before.json --save-sids measurements/sample.sids.json
+# پس از ویرایش پرامپت:
+uv run python scripts/measure_summary_length.py --out measurements/after.json --sids measurements/sample.sids.json
+```
+
+فریزکردن نمونه لازم است: `news_posts.json` هر ۱۵ دقیقه با اجرای تایمر رشد
+می‌کند و بدون فهرست `sid`، نمونهٔ تصادفی بین دو اجرا جابه‌جا می‌شود و مقایسه
+بی‌جفت می‌ماند. گیتوی مدل‌ها را round-robin می‌کند، پس نتیجه نویزی است و باید با
+میانه مقایسه شود، نه با یک اجرا.
+
 ## اجرای webhook ربات
 
 برای توسعه:

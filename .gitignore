@@ -7,4 +7,5 @@ __pycache__
 /.env
 /*.iml
 news_posts.json
+measurements
 .pytest_cache
