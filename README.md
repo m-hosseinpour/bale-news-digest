@@ -94,9 +94,9 @@ MIN_IMPORTANCE=major      # major | normal | trivial
 PUBLIC_WEBHOOK_URL=https://your-domain.com/webhook
 ```
 
-برای هر دستهٔ مهم می‌توانی کانال اختصاصی بدهی
-(`BALE_BOT_CHAT_ID_WAR_CONFLICT`, `BALE_BOT_CHAT_ID_POLITICS`,
-`BALE_BOT_CHAT_ID_ECONOMY`, `BALE_BOT_CHAT_ID_SCIENCE_TECH`).
+همهٔ پست‌های مهم فقط به کانال اصلی (`BALE_BOT_CHAT_ID`) ارسال می‌شوند؛
+کانال اختصاصی برای دسته‌ها وجود ندارد و `IMPORTANT_CATEGORIES` تنها تعیین
+می‌کند کدام دسته‌ها به کانال اصلی بروند.
 
 ## اجرای اصلی: دریافت و ارسال خلاصه اخبار
 

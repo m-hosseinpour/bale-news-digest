@@ -1,7 +1,6 @@
 from bale_bot_message_sender import send_post
 from config import (
     BALE_BOT_CHAT_ID,
-    CATEGORY_CHAT_IDS,
     IMPORTANT_CATEGORIES,
     MAX_STORED_POSTS,
     MIN_IMPORTANCE,
@@ -10,20 +9,6 @@ from model import IMPORTANCE_RANK, NewsPost
 from news_collector import fetch_new_posts
 from news_summarizer import compose_message, summarize_single_post
 from utils import load_posts, save_posts
-
-
-def _targets_for_post(post: NewsPost) -> list[int]:
-    """Return all chat ids that should receive this important post.
-
-    The main channel (if configured) is always included. The post's category's
-    dedicated channel (if configured) is appended.
-    """
-    targets: list[int] = []
-    if BALE_BOT_CHAT_ID is not None:
-        targets.append(BALE_BOT_CHAT_ID)
-    if post.category and post.category in CATEGORY_CHAT_IDS:
-        targets.append(CATEGORY_CHAT_IDS[post.category])
-    return targets
 
 
 def _meets_importance(post: NewsPost) -> bool:
@@ -38,14 +23,18 @@ def _meets_importance(post: NewsPost) -> bool:
 
 
 def dispatch_post(post: NewsPost) -> None:
+    """خلاصه را فقط به کانال اصلی می‌فرستد؛ کانال اختصاصی دسته‌ها وجود ندارد."""
+    if BALE_BOT_CHAT_ID is None:
+        print("⚠ BALE_BOT_CHAT_ID تنظیم نشده؛ پست ارسال نشد.")
+        return
+
     summary = summarize_single_post(post)
     message = compose_message(post, summary)
 
     print('=' * 50 + ' MESSAGE-TO-SEND ' + '=' * 50)
     print(message)
 
-    for chat_id in _targets_for_post(post):
-        send_post(message, post.media_url, post.media_kind, chat_id)
+    send_post(message, post.media_url, post.media_kind, BALE_BOT_CHAT_ID)
 
 
 def run_once() -> None:

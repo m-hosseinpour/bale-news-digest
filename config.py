@@ -105,20 +105,6 @@ except ValueError:
     print("⚠ مقدار BALE_BOT_CHAT_ID نامعتبر است؛ None در نظر گرفته می‌شود.")
     BALE_BOT_CHAT_ID = None
 
-
-# chat_id اختصاصی هر دستهٔ مهم، از env خوانده می‌شود.
-# نام env: BALE_BOT_CHAT_ID_<CATEGORY> (مثلاً BALE_BOT_CHAT_ID_WAR_CONFLICT).
-# اگر برای دسته‌ای تنظیم نشده باشد، آن دسته فقط در کانال اصلی ارسال می‌شود.
-CATEGORY_CHAT_IDS: dict[NewsCategory, int] = {}
-for _cat in IMPORTANT_CATEGORIES:
-    _raw = os.getenv(f"BALE_BOT_CHAT_ID_{_cat.name}")
-    if not _raw:
-        continue
-    try:
-        CATEGORY_CHAT_IDS[_cat] = int(_raw)
-    except ValueError:
-        print(f"⚠ مقدار BALE_BOT_CHAT_ID_{_cat.name} نامعتبر است؛ نادیده گرفته می‌شود.")
-
 OPEN_AI_MODEL_NAME = os.getenv("OPEN_AI_MODEL_NAME", "qwen3:4b-instruct")
 OPEN_AI_BASE_URL = os.getenv("OPEN_AI_BASE_URL", "http://localhost:11434/v1")
 OPEN_AI_API_KEY = os.getenv("OPEN_AI_API_KEY", "ollama")
