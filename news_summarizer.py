@@ -47,10 +47,8 @@ YOUR TASK:
 - Write the news item as a concise and understandable paragraph.
 - The summary should typically be 1 to 2 sentences; maximum 3 sentences only if the news contains multiple very important points.
 - Avoid long writing, repetition, unnecessary background, and unnecessary quotes.
-- Avoid over-shortening; the summary must still clarify what happened, to whom/where, and why it matters.
 - Focus only on key points.
 - Stay strictly faithful to the input text; NEVER add information, names, or positions that are not in the text.
-- Preserve all numbers, dates, locations, and key names; remove only low-importance details.
 - Start the output directly with the summarized Persian text, without any emoji, label, introduction, or extra explanation.
 - NEVER write phrases like "خلاصه خبر", "Summary", or similar labels.
 
@@ -87,7 +85,6 @@ If the input text cannot be summarized as news (e.g., it is just a description o
 
 CRITICAL RULE FOR POSTS WITH AN ATTACHMENT:
 Some posts carry an attachment (photo, video, audio, or file) whose content you cannot see. When the input notes such an attachment:
-- Treat the attachment as supporting context of the same news item, so your summary reflects that the post is a full news item rather than a bare sentence.
 - NEVER mention the attachment in the summary: no words like "عکس", "تصویر", "فیلم", "ویدیو", "کلیپ", "صوت", "فایل", "ضمیمه", "منتشر شده", "در ادامه می‌بینید", nor any phrase pointing the reader to a picture or clip.
 - The summary must read exactly like any other text-only news summary.
 """
