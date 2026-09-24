@@ -44,8 +44,9 @@ class NewsPost(BaseModel):
     category: NewsCategory | None
     media_url: str | None = None
     media_kind: MediaKind | None = None
-    # None یعنی اهمیت سنجیده نشده (پست در دستهٔ مهم نبوده) یا سنجش شکست خورده.
-    # در هر دو حالت هنگام ارسال، fail-open رفتار می‌کنیم و پست فرستاده می‌شود.
+    # None یعنی اهمیت سنجیده نشده: یا پست در دستهٔ مهم نبوده، یا سنجش شکست
+    # خورده. برای دستهٔ غیرمهم اصلاً ارسالی در کار نیست؛ در حالت شکست، هنگام
+    # ارسال fail-open رفتار می‌کنیم تا خرابی گیتوی خبر را بی‌صدا حذف نکند.
     importance: Importance | None = None
 
     @field_validator("category", mode="before")

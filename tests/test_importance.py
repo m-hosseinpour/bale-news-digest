@@ -35,10 +35,20 @@ def test_match_importance_accepts_weak_model_forms(raw, expected):
         "triviality",
         "关于这个问题，我没有相关信息",
         "no answer",
+        # نفی: مدل با رد کردن یک برچسب، همان برچسب را به ما می‌دهد. خواندنش
+        # یعنی حذف خبری که مدل گفته کمارزش نیست.
+        "not trivial",
+        "This is not trivial; it is a war escalation",
+        "not normal",
     ],
 )
 def test_match_importance_rejects_unparseable(raw):
     assert _match_importance(raw) is None
+
+
+def test_match_importance_reads_the_label_after_a_negated_one():
+    assert _match_importance("not normal, this is major") is Importance.MAJOR
+    assert _match_importance("normal, not trivial") is Importance.NORMAL
 
 
 # ---------- judge_importance ----------
@@ -146,6 +156,46 @@ def test_gate_threshold_normal(monkeypatch):
     assert main._meets_importance(_post(Importance.MAJOR)) is True
     assert main._meets_importance(_post(Importance.NORMAL)) is True
     assert main._meets_importance(_post(Importance.TRIVIAL)) is False
+
+
+def test_run_once_dispatches_only_posts_that_pass_the_gate(monkeypatch):
+    """گِیت را در مسیر واقعی run_once قفل می‌کند.
+
+    بدون این تست، حذف `and _meets_importance(...)` از run_once هیچ تستی را
+    قرمز نمی‌کرد.
+    """
+    monkeypatch.setattr(main, "MIN_IMPORTANCE", Importance.MAJOR)
+
+    posts = [
+        NewsPost(
+            sid="1-1", text="خبر مهم", category=NewsCategory.POLITICS,
+            importance=Importance.MAJOR,
+        ),
+        NewsPost(
+            sid="2-2", text="خبر عادی", category=NewsCategory.POLITICS,
+            importance=Importance.NORMAL,
+        ),
+        NewsPost(
+            sid="3-3", text="خبر با سنجش شکست‌خورده", category=NewsCategory.WAR_CONFLICT,
+            importance=None,
+        ),
+        NewsPost(
+            sid="4-4", text="خبر ورزشی", category=NewsCategory.SPORTS,
+            importance=None,
+        ),
+    ]
+
+    dispatched: list[NewsPost] = []
+    monkeypatch.setattr(main, "load_posts", lambda: [])
+    monkeypatch.setattr(main, "save_posts", lambda _posts: None)
+    monkeypatch.setattr(main, "dispatch_post", dispatched.append)
+    monkeypatch.setattr(main, "fetch_new_posts", lambda _seen: iter(posts))
+
+    main.run_once()
+
+    # مهم فرستاده می‌شود، عادی نه، سنجش‌نشده (fail-open) فرستاده می‌شود، و
+    # دستهٔ غیرمهم هرگز نمی‌رود.
+    assert [p.sid for p in dispatched] == ["1-1", "3-3"]
 
 
 # ---------- collector wiring ----------

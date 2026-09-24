@@ -256,11 +256,17 @@ def _request_importance(cleaned_text: str) -> str | None:
     return content.strip() if content else None
 
 
+# نفی پیش از برچسب. بدون این گارد، مدل با رد کردن یک برچسب («this is not
+# trivial») دقیقاً همان برچسب را به ما می‌دهد و پست به‌اشتباه حذف می‌شود.
+_NEGATION_BEFORE_RE = re.compile(r"\b(?:not|no|never|isn'?t|aren'?t|wasn'?t)\s+$")
+
+
 def _match_importance(raw_output: str) -> Importance | None:
     """برچسب اهمیت را از خروجی خام درمی‌آورد.
 
-    None یعنی هیچ برچسبی از فهرست نبود (شکست)، که با IMPORTANCE نبودن فرق دارد.
-    تطابق کل‌واژه است تا «not trivial» به‌اشتباه trivial خوانده نشود.
+    None یعنی هیچ برچسب قابل استنادی نبود (شکست)، که با «اهمیت trivial» فرق
+    دارد. تطابق کل‌واژه است و برچسبی که پیش از آن نفی آمده نادیده گرفته
+    می‌شود؛ نتیجهٔ نفی‌شده یعنی شکست، پس مسیر retry و در نهایت fail-open.
     """
     text = raw_output.strip().lower()
 
@@ -269,8 +275,9 @@ def _match_importance(raw_output: str) -> Importance | None:
             return importance
 
     for importance in Importance:
-        if re.search(rf"\b{importance.value}\b", text):
-            return importance
+        for match in re.finditer(rf"\b{importance.value}\b", text):
+            if not _NEGATION_BEFORE_RE.search(text[: match.start()]):
+                return importance
 
     return None
 
