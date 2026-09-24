@@ -3,8 +3,10 @@ from config import (
     BALE_BOT_CHAT_ID,
     CATEGORY_CHAT_IDS,
     IMPORTANT_CATEGORIES,
+    MAX_STORED_POSTS,
+    MIN_IMPORTANCE,
 )
-from model import NewsCategory, NewsPost
+from model import IMPORTANCE_RANK, NewsPost
 from news_collector import fetch_new_posts
 from news_summarizer import compose_message, summarize_single_post
 from utils import load_posts, save_posts
@@ -22,6 +24,17 @@ def _targets_for_post(post: NewsPost) -> list[int]:
     if post.category and post.category in CATEGORY_CHAT_IDS:
         targets.append(CATEGORY_CHAT_IDS[post.category])
     return targets
+
+
+def _meets_importance(post: NewsPost) -> bool:
+    """آیا اهمیت پست به آستانهٔ ارسال می‌رسد؟
+
+    پستی که اهمیتش سنجیده نشده (None) فرستاده می‌شود؛ خرابیِ سنجش نباید خبر را
+    بی‌صدا حذف کند.
+    """
+    if post.importance is None:
+        return True
+    return IMPORTANCE_RANK[post.importance] >= IMPORTANCE_RANK[MIN_IMPORTANCE]
 
 
 def dispatch_post(post: NewsPost) -> None:
@@ -43,10 +56,14 @@ def run_once() -> None:
         all_posts.append(new_post)
         seen_sids.add(new_post.sid)
 
-        if new_post.category and new_post.category in IMPORTANT_CATEGORIES:
+        if (
+            new_post.category
+            and new_post.category in IMPORTANT_CATEGORIES
+            and _meets_importance(new_post)
+        ):
             dispatch_post(new_post)
 
-        all_posts = all_posts[-1000:]
+        all_posts = all_posts[-MAX_STORED_POSTS:]
         save_posts(all_posts)
 
 

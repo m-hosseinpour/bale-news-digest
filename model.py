@@ -15,6 +15,22 @@ class NewsCategory(str, Enum):
     UNKNOWN = "unknown"  # fallback
 
 
+class Importance(str, Enum):
+    """اهمیت خبر برای مخاطبی که وقت کمی دارد. ترتیب با IMPORTANCE_RANK."""
+
+    MAJOR = "major"
+    NORMAL = "normal"
+    TRIVIAL = "trivial"
+
+
+# رتبهٔ ترتیبی برای مقایسه با آستانهٔ ارسال. MAJOR بالاترین اهمیت است.
+IMPORTANCE_RANK: dict[Importance, int] = {
+    Importance.TRIVIAL: 1,
+    Importance.NORMAL: 2,
+    Importance.MAJOR: 3,
+}
+
+
 class MediaKind(str, Enum):
     PHOTO = "photo"
     VIDEO = "video"
@@ -28,6 +44,9 @@ class NewsPost(BaseModel):
     category: NewsCategory | None
     media_url: str | None = None
     media_kind: MediaKind | None = None
+    # None یعنی اهمیت سنجیده نشده (پست در دستهٔ مهم نبوده) یا سنجش شکست خورده.
+    # در هر دو حالت هنگام ارسال، fail-open رفتار می‌کنیم و پست فرستاده می‌شود.
+    importance: Importance | None = None
 
     @field_validator("category", mode="before")
     @classmethod
@@ -36,6 +55,16 @@ class NewsPost(BaseModel):
             return v
         try:
             return NewsCategory(v)
+        except ValueError:
+            return None
+
+    @field_validator("importance", mode="before")
+    @classmethod
+    def fallback_importance(cls, v):
+        if v is None or isinstance(v, Importance):
+            return v
+        try:
+            return Importance(v)
         except ValueError:
             return None
 

@@ -4,9 +4,11 @@ A bot that automatically fetches, classifies, and summarizes news from a Bale me
 
 ## Main Flow
 
-`main.py` → `news_collector.fetch_new_posts` (Bale public `POST https://api.ble.ir/api/v1/LoadHistory` for `ble.ir/s/<CHANNEL_SLUG>`) → `news_classifier` (LLM classification) → `news_summarizer` (summary + post link) → `bale_bot_message_sender` (send to target channel).
+`main.py` → `news_collector.fetch_new_posts` (Bale public `POST https://api.ble.ir/api/v1/LoadHistory` for `ble.ir/s/<CHANNEL_SLUG>`) → `news_classifier` (LLM classification, then LLM importance for important categories) → `news_summarizer` (summary + post link) → `bale_bot_message_sender` (send to target channel).
 
-- Already-seen posts are persisted in `news_posts.json` (keeps the last 1000 items). `sid` is exactly `f"{rid}-{date}"` as returned by the API (`rid` is a JSON string, may be a negative int64) — changing it would re-send every post.
+- Importance is a second, separate LLM call (`judge_importance`) made only for posts whose category is in `IMPORTANT_CATEGORIES`; the tuned classification prompt is deliberately left untouched. Output is one of `major`/`normal`/`trivial` (numeric scores measured as far less stable on the weak gateway). `MIN_IMPORTANCE` (env) is the send threshold; a post with `importance=None` (not judged, or judging failed) is **sent** (fail-open).
+
+- Already-seen posts are persisted in `news_posts.json` (keeps the last `MAX_STORED_POSTS`, default 5000). `sid` is exactly `f"{rid}-{date}"` as returned by the API (`rid` is a JSON string, may be a negative int64) — changing it would re-send every post.
 - The channel's internal peer id comes from `PEER_ID` in `.env` and is never re-discovered at runtime; `scripts/resolve_peer_id.py` prints it once.
 - Each "important" post (those in `IMPORTANT_CATEGORIES`) is summarized individually and dispatched immediately to the main channel and, if configured, to its category's dedicated channel (`BALE_BOT_CHAT_ID_<CATEGORY>` env var).
 - If the post carries an attachment, it is sent with the summary via `sendPhoto`/`sendVideo`/`sendAudio`/`sendDocument` using the `documentMessage.url` — Bale downloads it server-side, so nothing is uploaded by us. Media has no `file_id` (LoadHistory doesn't return one) and `copyMessage`/`forwardMessage` is impossible (bot has no access to the source channel).

@@ -2,7 +2,7 @@ import re
 import time
 
 from config import OPEN_AI_MODEL_NAME
-from model import NewsCategory
+from model import Importance, NewsCategory
 from open_ai_client_provider import open_ai_client
 
 
@@ -145,6 +145,21 @@ Output ONLY one lowercase category name. No explanation, no punctuation, no extr
 """
 
 
+# سنجش اهمیت، جدا و با پرامپت کوتاه انجام می‌شود تا پرامپت بزرگ و تنظیم‌شدهٔ
+# دسته‌بندی دست‌نخورده بماند. فرمت سه‌برچسبی روی مدل‌های ضعیف گیتوی پایدارتر از
+# مقیاس عددی ۱–۵ بود: در پراب روی پست‌های واقعی، مقیاس عددی نرخ پاسخ خالی
+# بسیار بالاتری داد و همان رویداد را بین backend‌ها ۳ و ۴ می‌گرفت.
+IMPORTANCE_SYSTEM_PROMPT = """You judge how important a Persian news item is, for a reader who has very little time and only wants the news that truly matters.
+Output ONLY one word from this list, lowercase, nothing else:
+major, normal, trivial
+
+major = a concrete event that ALREADY happened and has real consequences: an attack, strike, seizure, or clash with casualties or damage; a war escalation; a law or official decision that took effect; a major economic shock or market crash; a disaster; the death of a major figure.
+normal = worth knowing but not urgent: official statements, positions, reactions, speeches, interviews, analyses, predictions, diplomatic meetings, ongoing coverage.
+trivial = not really news: press reviews, calendars, promotions, vague slogans, ceremonial visits, routine personnel news.
+
+Most items are normal, not major. Choose major ONLY when the text describes a concrete event that already happened with consequences. A statement, speech, opinion, or prediction is NOT major, even when the topic is war or politics. Judge only the main news content, not the poster's tone or the emojis. Output ONLY the one word."""
+
+
 def _clean_text_for_classification(text: str) -> str:
     text = URL_PATTERN.sub(" ", text)
     text = MENTION_PATTERN.sub(" ", text)
@@ -221,6 +236,75 @@ def _match_category(raw_output: str) -> NewsCategory | None:
             return category
 
     return None
+
+
+def _request_importance(cleaned_text: str) -> str | None:
+    """یک فراخوانی مدل برای سنجش اهمیت؛ None یعنی پاسخ خالی بود."""
+    response = open_ai_client.chat.completions.create(
+        model=OPEN_AI_MODEL_NAME,
+        messages=[
+            {"role": "system", "content": IMPORTANCE_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Text: {cleaned_text}\nAnswer:"},
+        ],
+        temperature=0.0,
+    )
+
+    if not response.choices:
+        return None
+
+    content = response.choices[0].message.content
+    return content.strip() if content else None
+
+
+def _match_importance(raw_output: str) -> Importance | None:
+    """برچسب اهمیت را از خروجی خام درمی‌آورد.
+
+    None یعنی هیچ برچسبی از فهرست نبود (شکست)، که با IMPORTANCE نبودن فرق دارد.
+    تطابق کل‌واژه است تا «not trivial» به‌اشتباه trivial خوانده نشود.
+    """
+    text = raw_output.strip().lower()
+
+    for importance in Importance:
+        if text == importance.value:
+            return importance
+
+    for importance in Importance:
+        if re.search(rf"\b{importance.value}\b", text):
+            return importance
+
+    return None
+
+
+def judge_importance(news_text: str) -> Importance | None:
+    """اهمیت خبر را می‌سنجد؛ None یعنی متن محتوایی نداشت.
+
+    مثل classify_news: روی پاسخ خالی/بی‌برچسب چند بار تلاش می‌کند و اگر باز هم
+    نشد استثنا می‌دهد. تصمیم «فرستادن یا نه» با فراخوان‌کننده است.
+    """
+    cleaned_text = _clean_text_for_classification(news_text.strip())
+
+    if not cleaned_text:
+        return None
+
+    try:
+        for attempt in range(MAX_BAD_RESPONSE_RETRIES + 1):
+            raw_output = _request_importance(cleaned_text)
+            importance = _match_importance(raw_output) if raw_output is not None else None
+            if importance is not None:
+                return importance
+            if attempt < MAX_BAD_RESPONSE_RETRIES:
+                reason = "خالی" if raw_output is None else "بدون برچسب معتبر"
+                print(
+                    f"⚠ پاسخ {reason} از مدل در سنجش اهمیت؛ تلاش دوباره "
+                    f"({attempt + 1}/{MAX_BAD_RESPONSE_RETRIES})"
+                )
+                time.sleep(1)
+
+        raise RuntimeError("مدل پس از چند تلاش اهمیت معتبری برنگرداند")
+
+    except Exception as e:
+        print(f"خطا در سنجش اهمیت: {e}")
+        raise e
 
 
 # تست

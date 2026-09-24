@@ -9,12 +9,13 @@ from config import (
     CHANNEL_SLUG,
     HISTORY_PAGE_SLEEP,
     HTTP_TIMEOUT,
+    IMPORTANT_CATEGORIES,
     MAX_PAGES_PER_RUN,
     MAX_POSTS_PER_RUN,
     PEER_ID,
 )
-from model import MediaKind, NewsCategory, NewsPost
-from news_classifier import classify_news
+from model import Importance, MediaKind, NewsCategory, NewsPost
+from news_classifier import classify_news, judge_importance
 
 API_URL = "https://api.ble.ir/api/v1/LoadHistory"
 PUBLIC_CHANNEL_URL = "https://ble.ir/s/{slug}"
@@ -322,8 +323,19 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
                 print(f"⚠ خطا در classification برای sid={sid}: {e}")
                 category = NewsCategory.UNKNOWN
 
+            # اهمیت فقط برای دسته‌هایی سنجیده می‌شود که ممکن است ارسال شوند؛
+            # برای بقیه یک فراخوانی مدل هدر می‌رود.
+            importance: Importance | None = None
+            if category in IMPORTANT_CATEGORIES:
+                try:
+                    importance = judge_importance(text)
+                except Exception as e:
+                    # fail-open: بدون اهمیت هم پست فرستاده می‌شود.
+                    print(f"⚠ خطا در سنجش اهمیت برای sid={sid}: {e}")
+                    importance = None
+
             print("─" * 30 + " NEW-POST " + "─" * 30)
-            print(f"[ {category.value if category else None} ]")
+            print(f"[ {category.value if category else None} / {importance.value if importance else '?'} ]")
             print(text[:200])
             print(f"🆔 {sid}")
 
@@ -334,6 +346,7 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
                 category=category,
                 media_url=media_url,
                 media_kind=media_kind,
+                importance=importance,
             )
 
             if new_posts >= MAX_POSTS_PER_RUN:

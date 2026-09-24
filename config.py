@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 
-from model import NewsCategory
+from model import Importance, NewsCategory
 
 load_dotenv()
 
@@ -16,6 +16,18 @@ def _env_int(name: str, default: int) -> int:
         return int(value)
     except ValueError:
         print(f"⚠ مقدار نامعتبر برای {name}={value!r}; استفاده از {default}")
+        return default
+
+
+def _env_importance(name: str, default: Importance) -> Importance:
+    value = os.getenv(name)
+    if value is None:
+        return default
+
+    try:
+        return Importance(value.strip().lower())
+    except ValueError:
+        print(f"⚠ مقدار نامعتبر برای {name}={value!r}; استفاده از {default.value}")
         return default
 
 
@@ -37,6 +49,11 @@ IMPORTANT_CATEGORIES: list[NewsCategory] = [
     NewsCategory.ECONOMY,
     NewsCategory.SCIENCE_TECH,
 ]
+
+# کمترین سطح اهمیت برای ارسال به کانال: major | normal | trivial.
+# پیش‌فرض MAJOR است تا کانال فقط رویدادهای مشخص را بگیرد (هدف: چند ده پیام
+# در روز به‌جای ~۹۰). پستی که اهمیتش سنجیده نشده (None) همیشه فرستاده می‌شود.
+MIN_IMPORTANCE = _env_importance("MIN_IMPORTANCE", Importance.MAJOR)
 
 CHANNEL_SLUG = os.getenv("CHANNEL_SLUG", "akharinkhabar")
 
@@ -72,6 +89,10 @@ PEER_ID = _parse_peer_id(os.getenv("PEER_ID"))
 
 MAX_PAGES_PER_RUN = _env_int("MAX_PAGES_PER_RUN", 50)
 MAX_POSTS_PER_RUN = _env_int("MAX_POSTS_PER_RUN", 500)
+# سقف نگهداری تاریخچهٔ دیده‌شده در news_posts.json. هم برای جلوگیری از ارسال
+# دوباره و هم برای بررسی/تست روی داده واقعی نگه داشته می‌شود؛ ۵۰۰۰ پست حدود
+# ۳ مگابایت است.
+MAX_STORED_POSTS = _env_int("MAX_STORED_POSTS", 5000)
 HISTORY_PAGE_SLEEP = _env_float("HISTORY_PAGE_SLEEP", 0.3)
 HTTP_TIMEOUT = _env_int("HTTP_TIMEOUT", 30)
 
