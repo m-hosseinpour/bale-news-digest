@@ -120,8 +120,10 @@ def _match_importance(raw_output: str) -> Importance | None:
 def judge_importance(news_text: str) -> Importance | None:
     """اهمیت خبر را می‌سنجد؛ None یعنی متن محتوایی نداشت.
 
-    روی پاسخ خالی/بی‌برچسب چند بار تلاش می‌کند و اگر باز هم نشد استثنا
-    می‌دهد. تصمیم «فرستادن یا نه» با فراخوان‌کننده است.
+    پاسخ خالی/بی‌برچسب و **خطای انتقالی** (timeout، قطع اتصال) هر دو تلاش
+    مجدد می‌گیرند: پاسخ بد یعنی مدل از نقش خارج شده، و تپق شبکه‌ای هم نباید
+    همان لحظه به fail-open (ارسال) برسد. بعد از تمام‌شدن تلاش‌ها استثنا
+    می‌دهد و تصمیم «فرستادن یا نه» با فراخوان‌کننده است.
     """
     cleaned_text = _clean_text(news_text.strip())
 
@@ -129,19 +131,33 @@ def judge_importance(news_text: str) -> Importance | None:
         return None
 
     try:
+        last_error: Exception | None = None
+
         for attempt in range(MAX_BAD_RESPONSE_RETRIES + 1):
-            raw_output = _request_importance(cleaned_text)
+            try:
+                raw_output = _request_importance(cleaned_text)
+                last_error = None
+            except Exception as e:  # noqa: BLE001 — خطای مدل اینجا «پاسخ بد» است
+                last_error = e
+                raw_output = None
+
             importance = _match_importance(raw_output) if raw_output is not None else None
             if importance is not None:
                 return importance
+
             if attempt < MAX_BAD_RESPONSE_RETRIES:
-                reason = "خالی" if raw_output is None else "بدون برچسب معتبر"
+                if last_error is not None:
+                    reason = f"خطای {type(last_error).__name__}"
+                else:
+                    reason = "خالی" if raw_output is None else "بدون برچسب معتبر"
                 print(
-                    f"⚠ پاسخ {reason} از مدل در سنجش اهمیت؛ تلاش دوباره "
+                    f"⚠ {reason} از مدل در سنجش اهمیت؛ تلاش دوباره "
                     f"({attempt + 1}/{MAX_BAD_RESPONSE_RETRIES})"
                 )
                 time.sleep(1)
 
+        if last_error is not None:
+            raise RuntimeError(f"تماس با مدل پس از چند تلاش ناموفق بود: {last_error}")
         raise RuntimeError("مدل پس از چند تلاش اهمیت معتبری برنگرداند")
 
     except Exception as e:

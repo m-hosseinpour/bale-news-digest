@@ -103,6 +103,43 @@ def test_importance_persistent_bad_response_raises_after_retries(monkeypatch):
     assert calls["n"] == news_importance.MAX_BAD_RESPONSE_RETRIES + 1
 
 
+def test_importance_transport_error_is_retried_then_succeeds(monkeypatch):
+    """یک تپق شبکه‌ای نباید همان لحظه به fail-open (ارسال) برسد."""
+    monkeypatch.setattr(news_importance.time, "sleep", lambda _s: None)
+
+    calls = {"n": 0}
+
+    def flaky(_text):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise TimeoutError("گیتوی جواب نداد")
+        return "major"
+
+    monkeypatch.setattr(news_importance, "_request_importance", flaky)
+
+    assert judge_importance("خبری برای سنجش اهمیت") is Importance.MAJOR
+    assert calls["n"] == 2
+
+
+def test_importance_persistent_transport_error_raises_after_retries(monkeypatch):
+    monkeypatch.setattr(news_importance.time, "sleep", lambda _s: None)
+
+    calls = {"n": 0}
+
+    def always_timeout(_text):
+        calls["n"] += 1
+        raise TimeoutError("گیتوی جواب نداد")
+
+    monkeypatch.setattr(news_importance, "_request_importance", always_timeout)
+
+    with pytest.raises(RuntimeError):
+        judge_importance("خبری برای سنجش اهمیت")
+
+    # ۴ تلاش پشت سر هم، بعد شکست — و collector آن را به fail-open (ارسال)
+    # تبدیل می‌کند.
+    assert calls["n"] == news_importance.MAX_BAD_RESPONSE_RETRIES + 1
+
+
 def test_importance_of_content_free_text_is_none_without_calling_model(monkeypatch):
     def boom(_text):
         raise AssertionError("نباید برای متن بدون محتوا به مدل درخواست بزند")
