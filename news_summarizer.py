@@ -44,7 +44,7 @@ CRITICAL OUTPUT LANGUAGE RULE:
 - Only the formatting instructions and labels are in English; the actual news summary must be in Persian.
 
 YOUR TASK:
-- Write the news item as a concise but complete and understandable paragraph.
+- Write the news item as a concise and understandable paragraph.
 - The summary should typically be 1 to 2 sentences; maximum 3 sentences only if the news contains multiple very important points.
 - Avoid long writing, repetition, unnecessary background, and unnecessary quotes.
 - Avoid over-shortening; the summary must still clarify what happened, to whom/where, and why it matters.
