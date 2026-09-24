@@ -3,7 +3,7 @@ from news_summarizer import _media_hint, compose_message
 
 
 def _post(sid: str = "1042098241046827171-1789672603195") -> NewsPost:
-    return NewsPost(sid=sid, text="خبر", category=None)
+    return NewsPost(sid=sid, text="خبر")
 
 
 def test_compose_keeps_summary_untouched():

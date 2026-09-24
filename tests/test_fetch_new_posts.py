@@ -1,8 +1,14 @@
 import pytest
 
-from model import MediaKind, NewsCategory, NewsPost
+from model import Importance, MediaKind, NewsPost
 from news_collector import _ensure_peer_id, fetch_new_posts
 import news_collector
+
+
+@pytest.fixture(autouse=True)
+def _stub_importance(monkeypatch):
+    # سنجش اهمیت یک فراخوانی مدل است؛ در تست‌ها جایش را یک حکم ثابت می‌گیرد.
+    monkeypatch.setattr(news_collector, "judge_importance", lambda _text: Importance.NORMAL)
 
 
 def _entry(rid: str, date: int, text: str) -> dict:
@@ -24,7 +30,6 @@ def test_fetch_new_posts_yields_new_posts(monkeypatch):
     monkeypatch.setattr(news_collector, "MAX_PAGES_PER_RUN", 5)
     monkeypatch.setattr(news_collector, "MAX_POSTS_PER_RUN", 100)
     monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
-    monkeypatch.setattr(news_collector, "classify_news", lambda text: NewsCategory.SOCIAL)
 
     pages = [
         [_entry("2", 2000, "خبر دو"), _entry("1", 1900, "خبر یک")],
@@ -36,7 +41,6 @@ def test_fetch_new_posts_yields_new_posts(monkeypatch):
 
     assert [p.sid for p in posts] == ["2-2000", "1-1900"]
     assert [p.text for p in posts] == ["خبر دو", "خبر یک"]
-    assert all(p.category is NewsCategory.SOCIAL for p in posts)
 
 
 def test_fetch_new_posts_stops_at_first_seen_sid(monkeypatch):
@@ -50,7 +54,6 @@ def test_fetch_new_posts_stops_at_first_seen_sid(monkeypatch):
         return [_entry("3", 2000, "خبر سه"), _entry("2", 1990, "خبر دو")]
 
     monkeypatch.setattr(news_collector, "load_history", fake_load_history)
-    monkeypatch.setattr(news_collector, "classify_news", lambda text: None)
 
     # پست «2-1990» قبلاً دیده شده، پس همان‌جا باید بایستیم و پست‌های جدیدتر
     # همان صفحه (3-2000) باید yield شوند.
@@ -63,7 +66,6 @@ def test_fetch_new_posts_stops_at_first_seen_sid(monkeypatch):
 def test_fetch_new_posts_skips_empty_text(monkeypatch):
     monkeypatch.setattr(news_collector, "PEER_ID", 1)
     monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
-    monkeypatch.setattr(news_collector, "classify_news", lambda text: None)
 
     pages = [
         [
@@ -84,7 +86,6 @@ def test_fetch_new_posts_skips_empty_text(monkeypatch):
 def test_fetch_new_posts_advances_anchor(monkeypatch):
     monkeypatch.setattr(news_collector, "PEER_ID", 1)
     monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
-    monkeypatch.setattr(news_collector, "classify_news", lambda text: None)
 
     anchors: list[int] = []
 
@@ -104,7 +105,6 @@ def test_fetch_new_posts_respects_page_cap(monkeypatch):
     monkeypatch.setattr(news_collector, "PEER_ID", 1)
     monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
     monkeypatch.setattr(news_collector, "MAX_PAGES_PER_RUN", 2)
-    monkeypatch.setattr(news_collector, "classify_news", lambda text: None)
 
     pages_sent = 0
 
@@ -125,7 +125,6 @@ def test_fetch_new_posts_respects_post_cap(monkeypatch):
     monkeypatch.setattr(news_collector, "PEER_ID", 1)
     monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
     monkeypatch.setattr(news_collector, "MAX_POSTS_PER_RUN", 3)
-    monkeypatch.setattr(news_collector, "classify_news", lambda text: None)
 
     page = [_entry(str(d), d, f"خبر {d}") for d in range(2000, 1980, -1)]
     monkeypatch.setattr(news_collector, "load_history", lambda peer_id, date: list(page))
@@ -143,7 +142,6 @@ def test_fetch_new_posts_raises_when_pagination_stalls(monkeypatch):
     # test_fetch_new_posts_advances_anchor پین شده است.
     monkeypatch.setattr(news_collector, "PEER_ID", 1)
     monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
-    monkeypatch.setattr(news_collector, "classify_news", lambda text: None)
     monkeypatch.setattr(
         news_collector,
         "load_history",
@@ -172,7 +170,6 @@ def test_fetch_new_posts_propagates_network_error(monkeypatch):
 def test_fetch_new_posts_attaches_media(monkeypatch):
     monkeypatch.setattr(news_collector, "PEER_ID", 1)
     monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
-    monkeypatch.setattr(news_collector, "classify_news", lambda text: None)
 
     url = "https://file-gw1.ble.ir/proxy_download/abc=?u=def"
     pages = [
@@ -205,9 +202,8 @@ def test_fetch_new_posts_attaches_media(monkeypatch):
 
 
 def test_news_post_model_roundtrip_for_negative_rid():
-    post = NewsPost(sid="-42-1000", text="خبر", category=NewsCategory.SOCIAL)
+    post = NewsPost(sid="-42-1000", text="خبر")
     assert post.sid == "-42-1000"
-    assert post.category is NewsCategory.SOCIAL
 
 
 def test_same_rid_with_two_dates_yields_both_posts(monkeypatch):
@@ -217,7 +213,6 @@ def test_same_rid_with_two_dates_yields_both_posts(monkeypatch):
     monkeypatch.setattr(news_collector, "MAX_PAGES_PER_RUN", 5)
     monkeypatch.setattr(news_collector, "MAX_POSTS_PER_RUN", 100)
     monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
-    monkeypatch.setattr(news_collector, "classify_news", lambda text: NewsCategory.SOCIAL)
 
     pages = [
         [_entry("7", 2000, "خبر الف"), _entry("7", 1999, "خبر ب")],

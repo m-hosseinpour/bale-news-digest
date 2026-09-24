@@ -1,16 +1,16 @@
 # Bale News Digest
 
-A bot that automatically fetches, classifies, and summarizes news from a Bale messenger channel using an LLM.
+A bot that automatically fetches, judges the importance of, and summarizes news from a Bale messenger channel using an LLM.
 
 ## Main Flow
 
-`main.py` → `news_collector.fetch_new_posts` (Bale public `POST https://api.ble.ir/api/v1/LoadHistory` for `ble.ir/s/<CHANNEL_SLUG>`) → `news_classifier` (LLM classification, then LLM importance for important categories) → `news_summarizer` (summary + post link) → `bale_bot_message_sender` (send to target channel).
+`main.py` → `news_collector.fetch_new_posts` (Bale public `POST https://api.ble.ir/api/v1/LoadHistory` for `ble.ir/s/<CHANNEL_SLUG>`) → `news_importance` (one LLM call: the importance that decides the send) → `news_summarizer` (summary + post link) → `bale_bot_message_sender` (send to target channel).
 
-- Importance is a second, separate LLM call (`judge_importance`) made only for posts whose category is in `IMPORTANT_CATEGORIES`; the tuned classification prompt is deliberately left untouched. Output is one of `major`/`normal`/`trivial` (numeric scores measured as far less stable on the weak gateway). `MIN_IMPORTANCE` (env) is the send threshold; a post with `importance=None` (not judged, or judging failed) is **sent** (fail-open).
+- There is no separate news classification: `judge_importance` is the only per-post LLM judgment and its verdict is what decides sending (a category layer existed until 2026-09-24; it cost an extra call for 76% of posts and the final decision rode on importance anyway). Output is one of `major`/`normal`/`trivial` (numeric scores measured as far less stable on the weak gateway); `MIN_IMPORTANCE` (env) is the send threshold. The prompt keeps `advertisement` always `trivial`, lets `sports`/`culture_art` be `major` only for a historic national achievement / the death of a national figure, and judges a multi-item digest by its most important item — all verified on 138 real posts on 2026-09-24 (leak check: 0 of 25 advertisement calls came back `major`; the raw verdicts sit in the untracked local `measurements/gate_v2*.json`). A post with `importance=None` (content-free text, or judging failed) is **sent** (fail-open); this is the only leak channel, and gateway failures recover via the built-in retries.
 
 - Already-seen posts are persisted in `news_posts.json` (keeps the last `MAX_STORED_POSTS`, default 5000). `sid` is exactly `f"{rid}-{date}"` as returned by the API (`rid` is a JSON string, may be a negative int64) — changing it would re-send every post.
 - The channel's internal peer id comes from `PEER_ID` in `.env` and is never re-discovered at runtime; `scripts/resolve_peer_id.py` prints it once.
-- Each "important" post (those in `IMPORTANT_CATEGORIES`) is summarized individually and dispatched immediately to the main channel (`BALE_BOT_CHAT_ID`) only — there are no per-category channels. `IMPORTANT_CATEGORIES` is purely the send filter, and comes from the `IMPORTANT_CATEGORIES` env var (comma-separated labels); empty or invalid falls back to `DEFAULT_IMPORTANT_CATEGORIES` = every category except `advertisement`/`sports`/`culture_art` (so it includes `unknown`).
+- Each post that passes the importance gate is summarized individually and dispatched immediately to the main channel (`BALE_BOT_CHAT_ID`) only — there are no per-category channels and no routing to decide.
 - If the post carries an attachment, it is sent with the summary via `sendPhoto`/`sendVideo`/`sendAudio`/`sendDocument` using the `documentMessage.url` — Bale downloads it server-side, so nothing is uploaded by us. Media has no `file_id` (LoadHistory doesn't return one) and `copyMessage`/`forwardMessage` is impossible (bot has no access to the source channel).
 - Message text is sent as plain text; only the last line is a markdown link `[لینک خبر مرجع](url)`. No `parse_mode` is set.
 
@@ -30,7 +30,7 @@ uv run python set_webhook.py                         # register the webhook
 ## Code Style Notes
 
 - Type hints throughout; pydantic v2 for models and validation.
-- LLM prompts live as `SYSTEM_PROMPT` constants in `news_classifier.py` and `news_summarizer.py`.
+- LLM prompts live as `IMPORTANCE_SYSTEM_PROMPT` in `news_importance.py` and `SYSTEM_PROMPT` in `news_summarizer.py`.
 - The LLM is expected to return exactly one label or a structured summary; any prompt change must be verified against several real samples.
 - File I/O errors in `utils.py` are logged, not raised — fall back to an empty list. Network/API calls in `news_collector.py` are the opposite: logged **and raised**, never swallowed into an empty list.
 - The `LoadHistory` API is undocumented and returns a fixed page of 10 messages. Text for `documentMessage` lives at `message.documentMessage.caption.text` (the majority of this channel's posts) — reading only `textMessage` silently drops most news. Pagination anchor is `min(date) - 1`; the `-1` is mandatory.

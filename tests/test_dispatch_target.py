@@ -1,12 +1,11 @@
 import main
-from model import Importance, NewsCategory, NewsPost
+from model import Importance, NewsPost
 
 
 def _post() -> NewsPost:
     return NewsPost(
         sid="1-1",
         text="خبر",
-        category=NewsCategory.POLITICS,
         importance=Importance.MAJOR,
     )
 

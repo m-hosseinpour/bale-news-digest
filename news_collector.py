@@ -9,13 +9,12 @@ from config import (
     CHANNEL_SLUG,
     HISTORY_PAGE_SLEEP,
     HTTP_TIMEOUT,
-    IMPORTANT_CATEGORIES,
     MAX_PAGES_PER_RUN,
     MAX_POSTS_PER_RUN,
     PEER_ID,
 )
-from model import Importance, MediaKind, NewsCategory, NewsPost
-from news_classifier import classify_news, judge_importance
+from model import Importance, MediaKind, NewsPost
+from news_importance import judge_importance
 
 API_URL = "https://api.ble.ir/api/v1/LoadHistory"
 PUBLIC_CHANNEL_URL = "https://ble.ir/s/{slug}"
@@ -316,26 +315,21 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
             media = extract_media(entry["message"])
             media_url, media_kind = media if media else (None, None)
 
-            category: NewsCategory | None = None
-            try:
-                category = classify_news(text)
-            except Exception as e:
-                print(f"⚠ خطا در classification برای sid={sid}: {e}")
-                category = NewsCategory.UNKNOWN
-
-            # اهمیت فقط برای دسته‌هایی سنجیده می‌شود که ممکن است ارسال شوند؛
-            # برای بقیه یک فراخوانی مدل هدر می‌رود.
+            # یک فراخوانی برای هر پست، و همان تصمیم ارسال را می‌سازد.
             importance: Importance | None = None
-            if category in IMPORTANT_CATEGORIES:
-                try:
-                    importance = judge_importance(text)
-                except Exception as e:
-                    # fail-open: بدون اهمیت هم پست فرستاده می‌شود.
-                    print(f"⚠ خطا در سنجش اهمیت برای sid={sid}: {e}")
-                    importance = None
+            try:
+                judged = judge_importance(text)
+            except Exception as e:
+                # fail-open: بدون اهمیت هم پست فرستاده می‌شود.
+                print(f"⚠ خطا در سنجش اهمیت برای sid={sid}: {e}")
+            else:
+                # judged=None یعنی متن بعد از پاکسازی محتوایی نداشت (فقط ایموجی
+                # یا لینک). این «قضاوت نشده» نیست، حکم است: چیزی برای فرستادن
+                # نیست. None می‌گذاشتیم، fail-open آن را می‌فرستاد.
+                importance = judged if judged is not None else Importance.TRIVIAL
 
             print("─" * 30 + " NEW-POST " + "─" * 30)
-            print(f"[ {category.value if category else None} / {importance.value if importance else '?'} ]")
+            print(f"[ {importance.value if importance else '?'} ]")
             print(text[:200])
             print(f"🆔 {sid}")
 
@@ -343,7 +337,6 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
             yield NewsPost(
                 sid=sid,
                 text=text,
-                category=category,
                 media_url=media_url,
                 media_kind=media_kind,
                 importance=importance,

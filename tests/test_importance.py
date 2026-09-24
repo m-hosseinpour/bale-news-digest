@@ -1,10 +1,10 @@
 import pytest
 
-import news_classifier
 import news_collector
+import news_importance
 import main
-from model import Importance, NewsCategory, NewsPost
-from news_classifier import _match_importance, judge_importance
+from model import Importance, NewsPost
+from news_importance import _match_importance, judge_importance
 
 
 # ---------- _match_importance ----------
@@ -57,7 +57,7 @@ CHINESE_REFUSAL = "关于这个问题，我没有相关信息，您可以尝试�
 
 
 def test_importance_empty_response_is_retried_then_succeeds(monkeypatch):
-    monkeypatch.setattr(news_classifier.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(news_importance.time, "sleep", lambda _s: None)
 
     calls = {"n": 0}
 
@@ -65,14 +65,14 @@ def test_importance_empty_response_is_retried_then_succeeds(monkeypatch):
         calls["n"] += 1
         return None if calls["n"] < 3 else "major"
 
-    monkeypatch.setattr(news_classifier, "_request_importance", flaky)
+    monkeypatch.setattr(news_importance, "_request_importance", flaky)
 
     assert judge_importance("خبری برای سنجش اهمیت") is Importance.MAJOR
     assert calls["n"] == 3
 
 
 def test_importance_label_less_response_is_retried_then_succeeds(monkeypatch):
-    monkeypatch.setattr(news_classifier.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(news_importance.time, "sleep", lambda _s: None)
 
     calls = {"n": 0}
 
@@ -80,14 +80,14 @@ def test_importance_label_less_response_is_retried_then_succeeds(monkeypatch):
         calls["n"] += 1
         return CHINESE_REFUSAL if calls["n"] < 2 else "trivial"
 
-    monkeypatch.setattr(news_classifier, "_request_importance", off_script)
+    monkeypatch.setattr(news_importance, "_request_importance", off_script)
 
     assert judge_importance("خبری برای سنجش اهمیت") is Importance.TRIVIAL
     assert calls["n"] == 2
 
 
 def test_importance_persistent_bad_response_raises_after_retries(monkeypatch):
-    monkeypatch.setattr(news_classifier.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(news_importance.time, "sleep", lambda _s: None)
 
     calls = {"n": 0}
 
@@ -95,19 +95,19 @@ def test_importance_persistent_bad_response_raises_after_retries(monkeypatch):
         calls["n"] += 1
         return None
 
-    monkeypatch.setattr(news_classifier, "_request_importance", always_empty)
+    monkeypatch.setattr(news_importance, "_request_importance", always_empty)
 
     with pytest.raises(RuntimeError):
         judge_importance("خبری برای سنجش اهمیت")
 
-    assert calls["n"] == news_classifier.MAX_BAD_RESPONSE_RETRIES + 1
+    assert calls["n"] == news_importance.MAX_BAD_RESPONSE_RETRIES + 1
 
 
 def test_importance_of_content_free_text_is_none_without_calling_model(monkeypatch):
     def boom(_text):
         raise AssertionError("نباید برای متن بدون محتوا به مدل درخواست بزند")
 
-    monkeypatch.setattr(news_classifier, "_request_importance", boom)
+    monkeypatch.setattr(news_importance, "_request_importance", boom)
     assert judge_importance("🔴🎥🔺") is None
 
 
@@ -115,17 +115,17 @@ def test_importance_of_content_free_text_is_none_without_calling_model(monkeypat
 
 
 def test_news_post_parses_importance():
-    post = NewsPost(sid="1-1", text="خبر", category=NewsCategory.POLITICS, importance="major")
+    post = NewsPost(sid="1-1", text="خبر", importance="major")
     assert post.importance is Importance.MAJOR
 
 
 def test_news_post_importance_defaults_to_none():
-    post = NewsPost(sid="1-1", text="خبر", category=NewsCategory.POLITICS)
+    post = NewsPost(sid="1-1", text="خبر")
     assert post.importance is None
 
 
 def test_news_post_invalid_importance_falls_back_to_none():
-    post = NewsPost(sid="1-1", text="خبر", category=NewsCategory.POLITICS, importance="urgent")
+    post = NewsPost(sid="1-1", text="خبر", importance="urgent")
     assert post.importance is None
 
 
@@ -134,7 +134,7 @@ def test_news_post_invalid_importance_falls_back_to_none():
 
 def _post(importance: Importance | None) -> NewsPost:
     return NewsPost(
-        sid="1-1", text="خبر", category=NewsCategory.POLITICS, importance=importance
+        sid="1-1", text="خبر", importance=importance
     )
 
 
@@ -168,20 +168,16 @@ def test_run_once_dispatches_only_posts_that_pass_the_gate(monkeypatch):
 
     posts = [
         NewsPost(
-            sid="1-1", text="خبر مهم", category=NewsCategory.POLITICS,
-            importance=Importance.MAJOR,
+            sid="1-1", text="خبر مهم", importance=Importance.MAJOR,
         ),
         NewsPost(
-            sid="2-2", text="خبر عادی", category=NewsCategory.POLITICS,
-            importance=Importance.NORMAL,
+            sid="2-2", text="خبر عادی", importance=Importance.NORMAL,
         ),
         NewsPost(
-            sid="3-3", text="خبر با سنجش شکست‌خورده", category=NewsCategory.WAR_CONFLICT,
-            importance=None,
+            sid="3-3", text="خبر با سنجش شکست‌خورده", importance=None,
         ),
         NewsPost(
-            sid="4-4", text="خبر ورزشی", category=NewsCategory.SPORTS,
-            importance=None,
+            sid="4-4", text="خبر ورزشی", importance=Importance.TRIVIAL,
         ),
     ]
 
@@ -193,8 +189,8 @@ def test_run_once_dispatches_only_posts_that_pass_the_gate(monkeypatch):
 
     main.run_once()
 
-    # مهم فرستاده می‌شود، عادی نه، سنجش‌نشده (fail-open) فرستاده می‌شود، و
-    # دستهٔ غیرمهم هرگز نمی‌رود.
+    # فقط major می‌رود؛ normal و trivial نه. پست ۳ سنجشش شکست خورده و
+    # fail-open فرستاده می‌شود — تنها راه نشتی هنگام خرابی گیتوی.
     assert [p.sid for p in dispatched] == ["1-1", "3-3"]
 
 
@@ -205,38 +201,34 @@ def _entry(rid: str, date: int, text: str) -> dict:
     return {"rid": rid, "date": date, "message": {"textMessage": {"text": text}}}
 
 
-def _collect(monkeypatch, category, history):
+def _collect(monkeypatch, history):
     monkeypatch.setattr(news_collector, "PEER_ID", 1)
     monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
     monkeypatch.setattr(news_collector, "MAX_PAGES_PER_RUN", 5)
     monkeypatch.setattr(news_collector, "MAX_POSTS_PER_RUN", 100)
-    monkeypatch.setattr(news_collector, "classify_news", lambda _t: category)
     pages = [history, []]
     monkeypatch.setattr(news_collector, "load_history", lambda _p, _d: pages.pop(0))
     return list(news_collector.fetch_new_posts(set()))
 
 
-def test_collector_judges_importance_for_important_category(monkeypatch):
+def test_collector_stores_the_judged_importance(monkeypatch):
     monkeypatch.setattr(news_collector, "judge_importance", lambda _t: Importance.MAJOR)
 
-    posts = _collect(
-        monkeypatch, NewsCategory.POLITICS, [_entry("1", 2000, "خبر مهم")]
-    )
+    posts = _collect(monkeypatch, [_entry("1", 2000, "خبر مهم")])
 
     assert posts[0].importance is Importance.MAJOR
 
 
-def test_collector_skips_importance_for_non_important_category(monkeypatch):
-    def boom(_text):
-        raise AssertionError("برای دستهٔ غیرمهم نباید اهمیت سنجیده شود")
+def test_collector_marks_content_free_post_trivial(monkeypatch):
+    """متن بدون محتوا (فقط ایموجی/لینک) حکم trivial می‌گیرد، نه None.
 
-    monkeypatch.setattr(news_collector, "judge_importance", boom)
+    با None، fail-open همان پست را به کانال می‌فرستاد.
+    """
+    monkeypatch.setattr(news_collector, "judge_importance", lambda _t: None)
 
-    posts = _collect(
-        monkeypatch, NewsCategory.SPORTS, [_entry("1", 2000, "خبر ورزشی")]
-    )
+    posts = _collect(monkeypatch, [_entry("1", 2000, "🔴🎥🔺")])
 
-    assert posts[0].importance is None
+    assert posts[0].importance is Importance.TRIVIAL
 
 
 def test_collector_importance_failure_is_fail_open(monkeypatch):
@@ -245,10 +237,7 @@ def test_collector_importance_failure_is_fail_open(monkeypatch):
 
     monkeypatch.setattr(news_collector, "judge_importance", boom)
 
-    posts = _collect(
-        monkeypatch, NewsCategory.POLITICS, [_entry("1", 2000, "خبر مهم")]
-    )
+    posts = _collect(monkeypatch, [_entry("1", 2000, "خبر مهم")])
 
     # پست با importance=None ذخیره می‌شود و در main فرستاده خواهد شد.
     assert posts[0].importance is None
-    assert posts[0].category is NewsCategory.POLITICS

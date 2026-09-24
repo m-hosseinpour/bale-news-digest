@@ -1,10 +1,5 @@
 from bale_bot_message_sender import send_post
-from config import (
-    BALE_BOT_CHAT_ID,
-    IMPORTANT_CATEGORIES,
-    MAX_STORED_POSTS,
-    MIN_IMPORTANCE,
-)
+from config import BALE_BOT_CHAT_ID, MAX_STORED_POSTS, MIN_IMPORTANCE
 from model import IMPORTANCE_RANK, NewsPost
 from news_collector import fetch_new_posts
 from news_summarizer import compose_message, summarize_single_post
@@ -45,11 +40,7 @@ def run_once() -> None:
         all_posts.append(new_post)
         seen_sids.add(new_post.sid)
 
-        if (
-            new_post.category
-            and new_post.category in IMPORTANT_CATEGORIES
-            and _meets_importance(new_post)
-        ):
+        if _meets_importance(new_post):
             dispatch_post(new_post)
 
         all_posts = all_posts[-MAX_STORED_POSTS:]

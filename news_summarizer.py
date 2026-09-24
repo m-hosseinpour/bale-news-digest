@@ -2,7 +2,7 @@ import re
 import time
 
 from config import CHANNEL_SLUG, OPEN_AI_MODEL_NAME
-from model import MediaKind, NewsCategory, NewsPost
+from model import MediaKind, NewsPost
 from open_ai_client_provider import open_ai_client
 
 # تعداد تلاش مجدد وقتی پاسخ مدل قابل استفاده نیست: یا خالی است (گیتوی پاسخ

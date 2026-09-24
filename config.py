@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 
-from model import Importance, NewsCategory
+from model import Importance
 
 load_dotenv()
 
@@ -42,53 +42,6 @@ def _env_float(name: str, default: float) -> float:
         print(f"⚠ مقدار نامعتبر برای {name}={value!r}; استفاده از {default}")
         return default
 
-
-def _env_categories(name: str, default: list[NewsCategory]) -> list[NewsCategory]:
-    """فهرست دسته‌ها را از env می‌خواند (با کاما جدا شده).
-
-    مقدار خالی یا نامعتبر (حتی یک توکن ناشناخته) کل مقدار را رد می‌کند و به
-    پیش‌فرض برمی‌گردد؛ یک تایپ اشتباه در env نباید فیلتر ارسال را بی‌صدا عوض
-    کند.
-    """
-    value = os.getenv(name)
-    if value is None:
-        return list(default)
-
-    tokens = [token.strip().lower() for token in value.split(",") if token.strip()]
-    if not tokens:
-        return list(default)
-
-    categories: list[NewsCategory] = []
-    for token in tokens:
-        try:
-            category = NewsCategory(token)
-        except ValueError:
-            print(f"⚠ مقدار نامعتبر {token!r} در {name}; استفاده از پیش‌فرض")
-            return list(default)
-        if category not in categories:
-            categories.append(category)
-
-    return categories
-
-
-# دسته‌هایی که پیش‌فرض «مهم» شمرده نمی‌شوند. اخبار مهم = همهٔ دسته‌ها منهای این
-# سه‌تا؛ از خود enum ساخته می‌شود تا دستهٔ تازه‌ای که به NewsCategory اضافه شود
-# خودکار داخل لیست بیاید.
-_DEFAULT_EXCLUDED_CATEGORIES = frozenset(
-    {
-        NewsCategory.ADVERTISEMENT,
-        NewsCategory.SPORTS,
-        NewsCategory.CULTURE_ART,
-    }
-)
-
-DEFAULT_IMPORTANT_CATEGORIES: list[NewsCategory] = [
-    category for category in NewsCategory if category not in _DEFAULT_EXCLUDED_CATEGORIES
-]
-
-# دسته‌های «مهم»: هم تعیین می‌کند کدام پست یک بار دیگر از نظر اهمیت سنجیده شود،
-# هم کدام پست به کانال برود. با IMPORTANT_CATEGORIES در .env قابل تنظیم است.
-IMPORTANT_CATEGORIES = _env_categories("IMPORTANT_CATEGORIES", DEFAULT_IMPORTANT_CATEGORIES)
 
 # کمترین سطح اهمیت برای ارسال به کانال: major | normal | trivial.
 # پیش‌فرض MAJOR است تا کانال فقط رویدادهای مشخص را بگیرد (هدف: چند ده پیام
