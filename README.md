@@ -206,6 +206,22 @@ uv run python set_webhook.py
   ```shell
   journalctl -u bale-news-digest.service --no-pager | grep -E "خطا در سنجش اهمیت|\[ \? \]"
   ```
+
+  هر شکست، **پاسخ خام مدل و `finish_reason`** را هم لاگ می‌کند
+  (`finish_reason=length | پاسخ خام: '…'`) تا معلوم شود مدل چه گفته بود؛ دیدن
+  `finish_reason=length` یعنی پاسخ مدل به سقف توکن خورده و بریده شده است.
+- تلاش دوباره فقط وقتی نجات می‌دهد که بکاند خرابِ گیتوی جواب بدِ تصادفی
+  بدهد. روتر به یک اتصال می‌چسبد، پس هر ۴ تلاش یک پست به همان بکاند می‌رود
+  (۲۵ سپتامبر ۲۰۲۶: بکاندی پاسخ‌هایش را در ۴۰۹۶ توکن می‌بُرید و ۹ پست در یک
+  پنجرهٔ ۳ ساعته بی‌داوری به کانال رفت). برای دیدن اینکه هر درخواست به کدام
+  بکاند رفته:
+
+  ```shell
+  sqlite3 "file:$HOME/.9router/db/data.sqlite?mode=ro" \
+    "select substr(timestamp,12,8), model, promptTokens, completionTokens
+     from usageHistory where promptTokens between 550 and 850
+     order by timestamp desc limit 20;"
+  ```
 - `sid` هر پست دقیقاً `"{rid}-{date}"` است، همان چیزی که API بله می‌دهد؛ همین
   باعث می‌شود dedup با `news_posts.json` بدون تغییر کار کند و خبری دوباره ارسال نشود.
 - برای پاسخ‌دهی ربات در PV، حتماً سرور باید با HTTPS در دسترس باشد.

@@ -7,10 +7,18 @@
 
 import re
 import time
+from typing import NamedTuple
 
 from config import OPEN_AI_MODEL_NAME
 from model import Importance
 from open_ai_client_provider import open_ai_client
+
+
+class ModelAnswer(NamedTuple):
+    """پاسخ یک فراخوانی مدل: متن و علت پایان‌یافتنش."""
+
+    text: str | None
+    finish_reason: str | None
 
 
 URL_PATTERN = re.compile(
@@ -75,8 +83,8 @@ def _clean_text(text: str) -> str:
     return text.strip()
 
 
-def _request_importance(cleaned_text: str) -> str | None:
-    """یک فراخوانی مدل؛ None یعنی پاسخ خالی بود (نه خطای شبکه)."""
+def _request_importance(cleaned_text: str) -> ModelAnswer:
+    """یک فراخوانی مدل؛ متن None یعنی پاسخ خالی بود (نه خطای شبکه)."""
     response = open_ai_client.chat.completions.create(
         model=OPEN_AI_MODEL_NAME,
         messages=[
@@ -87,10 +95,35 @@ def _request_importance(cleaned_text: str) -> str | None:
     )
 
     if not response.choices:
-        return None
+        return ModelAnswer(None, None)
 
-    content = response.choices[0].message.content
-    return content.strip() if content else None
+    choice = response.choices[0]
+    content = choice.message.content
+    text = content.strip() if content else None
+    return ModelAnswer(text, choice.finish_reason)
+
+
+# چقدر از پاسخ خام در لاگ بیاید. کافی است تا شکل خرابی معلوم شود
+# (متن بلند خارج از نقش، بریدگی، پاسخ چینی) بدون آنکه لاگ را پر کند.
+RAW_ANSWER_LOG_CHARS = 300
+
+
+def _describe_answer(answer: ModelAnswer | None) -> str:
+    """پاسخ خام مدل را برای لاگ توصیف می‌کند.
+
+    بدون این، شکست سنجش («پاسخ بدون برچسب معتبر») هیچ ردی از خودش جا
+    نمی‌گذاشت و بعد از وقوع قابل تشخیص نبود — گیتوی پاسخی داده بود که هیچ‌جا
+    دیده نمی‌شد.
+    """
+    if answer is None:
+        return "پاسخی نرسید"
+
+    parts = [f"finish_reason={answer.finish_reason}"]
+    if answer.text is None:
+        parts.append("متن خالی")
+    else:
+        parts.append(f"پاسخ خام: {answer.text[:RAW_ANSWER_LOG_CHARS]!r}")
+    return " | ".join(parts)
 
 
 # نفی پیش از برچسب. بدون این گارد، مدل با رد کردن یک برچسب («this is not
@@ -134,33 +167,39 @@ def judge_importance(news_text: str) -> Importance | None:
 
     try:
         last_error: Exception | None = None
+        last_answer: ModelAnswer | None = None
 
         for attempt in range(MAX_BAD_RESPONSE_RETRIES + 1):
             try:
-                raw_output = _request_importance(cleaned_text)
+                last_answer = _request_importance(cleaned_text)
                 last_error = None
             except Exception as e:  # noqa: BLE001 — خطای مدل اینجا «پاسخ بد» است
                 last_error = e
-                raw_output = None
+                last_answer = None
 
+            raw_output = last_answer.text if last_answer is not None else None
             importance = _match_importance(raw_output) if raw_output is not None else None
             if importance is not None:
                 return importance
 
             if attempt < MAX_BAD_RESPONSE_RETRIES:
                 if last_error is not None:
-                    reason = f"خطای {type(last_error).__name__}"
+                    reason = f"خطای {type(last_error).__name__}: {last_error}"
                 else:
                     reason = "خالی" if raw_output is None else "بدون برچسب معتبر"
                 print(
-                    f"⚠ {reason} از مدل در سنجش اهمیت؛ تلاش دوباره "
+                    f"⚠ {reason} از مدل در سنجش اهمیت "
+                    f"({_describe_answer(last_answer)}); تلاش دوباره "
                     f"({attempt + 1}/{MAX_BAD_RESPONSE_RETRIES})"
                 )
                 time.sleep(1)
 
         if last_error is not None:
             raise RuntimeError(f"تماس با مدل پس از چند تلاش ناموفق بود: {last_error}")
-        raise RuntimeError("مدل پس از چند تلاش اهمیت معتبری برنگرداند")
+        raise RuntimeError(
+            "مدل پس از چند تلاش اهمیت معتبری برنگرداند "
+            f"({_describe_answer(last_answer)})"
+        )
 
     except Exception as e:
         print(f"خطا در سنجش اهمیت: {e}")

@@ -4,7 +4,11 @@ import news_collector
 import news_importance
 import main
 from model import Importance, NewsPost
-from news_importance import _match_importance, judge_importance
+from news_importance import ModelAnswer, _match_importance, judge_importance
+
+
+def _answer(text, finish_reason="stop"):
+    return ModelAnswer(text, finish_reason)
 
 
 # ---------- _match_importance ----------
@@ -63,7 +67,7 @@ def test_importance_empty_response_is_retried_then_succeeds(monkeypatch):
 
     def flaky(_text):
         calls["n"] += 1
-        return None if calls["n"] < 3 else "major"
+        return _answer(None, None) if calls["n"] < 3 else _answer("major")
 
     monkeypatch.setattr(news_importance, "_request_importance", flaky)
 
@@ -78,7 +82,7 @@ def test_importance_label_less_response_is_retried_then_succeeds(monkeypatch):
 
     def off_script(_text):
         calls["n"] += 1
-        return CHINESE_REFUSAL if calls["n"] < 2 else "trivial"
+        return _answer(CHINESE_REFUSAL) if calls["n"] < 2 else _answer("trivial")
 
     monkeypatch.setattr(news_importance, "_request_importance", off_script)
 
@@ -93,7 +97,7 @@ def test_importance_persistent_bad_response_raises_after_retries(monkeypatch):
 
     def always_empty(_text):
         calls["n"] += 1
-        return None
+        return _answer(None, None)
 
     monkeypatch.setattr(news_importance, "_request_importance", always_empty)
 
@@ -101,6 +105,50 @@ def test_importance_persistent_bad_response_raises_after_retries(monkeypatch):
         judge_importance("خبری برای سنجش اهمیت")
 
     assert calls["n"] == news_importance.MAX_BAD_RESPONSE_RETRIES + 1
+
+
+def test_unusable_answer_is_logged_with_the_raw_output(monkeypatch, capsys):
+    """پاسخ بی‌برچسب باید با متن خام خودش لاگ شود.
+
+    بدون این، شکست سنجش هیچ ردی از خودش جا نمی‌گذاشت: فقط «بدون برچسب
+    معتبر» چاپ می‌شد و معلوم نبود مدل چه گفته بود (۲۵ سپتامبر: بکاند خراب
+    پاسخ ۴۰۹۶ توکنی خارج از نقش می‌داد و هیچ‌جا دیده نمی‌شد).
+    """
+    monkeypatch.setattr(news_importance.time, "sleep", lambda _s: None)
+
+    runaway = "این خبر ورزشی است و اهمیت آن ..." * 5
+    monkeypatch.setattr(
+        news_importance,
+        "_request_importance",
+        lambda _t: _answer(runaway, "length"),
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        judge_importance("خبری برای سنجش اهمیت")
+
+    output = capsys.readouterr().out
+    assert "finish_reason=length" in output
+    assert runaway[:50] in output
+    # همان توصیف باید در پیام استثنا هم باشد، چون collector آن را لاگ می‌کند.
+    assert "finish_reason=length" in str(excinfo.value)
+
+
+def test_huge_raw_answer_is_truncated_in_the_log(monkeypatch, capsys):
+    monkeypatch.setattr(news_importance.time, "sleep", lambda _s: None)
+
+    huge = "ب" * 20_000
+    monkeypatch.setattr(
+        news_importance,
+        "_request_importance",
+        lambda _t: _answer(huge, "length"),
+    )
+
+    with pytest.raises(RuntimeError):
+        judge_importance("خبری برای سنجش اهمیت")
+
+    output = capsys.readouterr().out
+    assert len(output) < news_importance.RAW_ANSWER_LOG_CHARS * 20
+    assert news_importance.RAW_ANSWER_LOG_CHARS < len(huge)
 
 
 def test_importance_transport_error_is_retried_then_succeeds(monkeypatch):
@@ -113,7 +161,7 @@ def test_importance_transport_error_is_retried_then_succeeds(monkeypatch):
         calls["n"] += 1
         if calls["n"] == 1:
             raise TimeoutError("گیتوی جواب نداد")
-        return "major"
+        return _answer("major")
 
     monkeypatch.setattr(news_importance, "_request_importance", flaky)
 
