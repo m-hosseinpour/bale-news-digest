@@ -52,6 +52,13 @@ YOUR TASK:
 - Start the output directly with the summarized Persian text, without any emoji, label, introduction, or extra explanation.
 - NEVER write phrases like "خلاصه خبر", "Summary", or similar labels.
 
+CRITICAL RULE AGAINST META-COMMENTARY:
+- The output is the news itself. It is NEVER a comment about the summary, the input text, the source, or your own writing.
+- NEVER append a parenthetical, bracket, footnote, or closing sentence that talks about the text or about your faithfulness to it. Forbidden examples: "(این خلاصه بر اساس متن ارائهشده است)", "(در متن اصلی ذکر شده است)", "(بر اساس متن)", "(بدون افزودن اطلاعات)".
+- NEVER write phrases like "شایان ذکر است", "لازم به ذکر است", "قابل ذکر است" either — say the fact directly.
+- Do NOT justify, explain, or reassure the reader that you stayed faithful to the input. Staying faithful is required, so it needs no mention; just write the summary.
+- Parentheses are allowed ONLY when the parenthesized content is part of the news fact itself (e.g. the expanded form of an abbreviation that appears in the input).
+
 CRITICAL RULE FOR SPEAKERS, TITLES, POSITIONS, AND AFFILIATIONS:
 - NEVER guess, infer, or invent a person's title, position, role, or organizational affiliation.
 - If the input text mentions a person by name (e.g., "همتی") but does NOT state their title, position, or affiliation in the text itself, refer to them ONLY by that exact name — NEVER add "رئیس بانک مرکزی", "نماینده بانک مرکزی", "وزیر", "کارشناس", "خبرنگار", or any other descriptor.
