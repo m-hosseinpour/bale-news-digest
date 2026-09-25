@@ -7,18 +7,10 @@
 
 import re
 import time
-from typing import NamedTuple
 
 from config import OPEN_AI_MODEL_NAME
 from model import Importance
-from open_ai_client_provider import open_ai_client
-
-
-class ModelAnswer(NamedTuple):
-    """پاسخ یک فراخوانی مدل: متن و علت پایان‌یافتنش."""
-
-    text: str | None
-    finish_reason: str | None
+from open_ai_client_provider import ModelAnswer, describe_answer, open_ai_client
 
 
 URL_PATTERN = re.compile(
@@ -103,29 +95,6 @@ def _request_importance(cleaned_text: str) -> ModelAnswer:
     return ModelAnswer(text, choice.finish_reason)
 
 
-# چقدر از پاسخ خام در لاگ بیاید. کافی است تا شکل خرابی معلوم شود
-# (متن بلند خارج از نقش، بریدگی، پاسخ چینی) بدون آنکه لاگ را پر کند.
-RAW_ANSWER_LOG_CHARS = 300
-
-
-def _describe_answer(answer: ModelAnswer | None) -> str:
-    """پاسخ خام مدل را برای لاگ توصیف می‌کند.
-
-    بدون این، شکست سنجش («پاسخ بدون برچسب معتبر») هیچ ردی از خودش جا
-    نمی‌گذاشت و بعد از وقوع قابل تشخیص نبود — گیتوی پاسخی داده بود که هیچ‌جا
-    دیده نمی‌شد.
-    """
-    if answer is None:
-        return "پاسخی نرسید"
-
-    parts = [f"finish_reason={answer.finish_reason}"]
-    if answer.text is None:
-        parts.append("متن خالی")
-    else:
-        parts.append(f"پاسخ خام: {answer.text[:RAW_ANSWER_LOG_CHARS]!r}")
-    return " | ".join(parts)
-
-
 # نفی پیش از برچسب. بدون این گارد، مدل با رد کردن یک برچسب («this is not
 # trivial») دقیقاً همان برچسب را به ما می‌دهد و پست به‌اشتباه حذف می‌شود.
 _NEGATION_BEFORE_RE = re.compile(r"\b(?:not|no|never|isn'?t|aren'?t|wasn'?t)\s+$")
@@ -189,7 +158,7 @@ def judge_importance(news_text: str) -> Importance | None:
                     reason = "خالی" if raw_output is None else "بدون برچسب معتبر"
                 print(
                     f"⚠ {reason} از مدل در سنجش اهمیت "
-                    f"({_describe_answer(last_answer)}); تلاش دوباره "
+                    f"({describe_answer(last_answer)}); تلاش دوباره "
                     f"({attempt + 1}/{MAX_BAD_RESPONSE_RETRIES})"
                 )
                 time.sleep(1)
@@ -198,7 +167,7 @@ def judge_importance(news_text: str) -> Importance | None:
             raise RuntimeError(f"تماس با مدل پس از چند تلاش ناموفق بود: {last_error}")
         raise RuntimeError(
             "مدل پس از چند تلاش اهمیت معتبری برنگرداند "
-            f"({_describe_answer(last_answer)})"
+            f"({describe_answer(last_answer)})"
         )
 
     except Exception as e:

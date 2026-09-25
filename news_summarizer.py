@@ -3,7 +3,7 @@ import time
 
 from config import CHANNEL_SLUG, OPEN_AI_MODEL_NAME
 from model import MediaKind, NewsPost
-from open_ai_client_provider import open_ai_client
+from open_ai_client_provider import ModelAnswer, describe_answer, open_ai_client
 
 # تعداد تلاش مجدد وقتی پاسخ مدل قابل استفاده نیست: یا خالی است (گیتوی پاسخ
 # ۲۰۰ اما بدون choices می‌دهد) یا غیرفارسی (بعضی backend‌ها از نقش خارج می‌شوند).
@@ -67,8 +67,10 @@ def _media_hint(media_kind: MediaKind | None) -> str:
     return f"\n\n[این خبر همراه یک {label} است.]"
 
 
-def _request_summary(news_text: str, media_kind: MediaKind | None = None) -> str | None:
-    """یک فراخوانی مدل؛ None یعنی پاسخ خالی بود (نه خطای شبکه)."""
+def _request_summary(
+    news_text: str, media_kind: MediaKind | None = None
+) -> ModelAnswer:
+    """یک فراخوانی مدل؛ متن None یعنی پاسخ خالی بود (نه خطای شبکه)."""
     response = open_ai_client.chat.completions.create(
         model=OPEN_AI_MODEL_NAME,
         messages=[
@@ -80,10 +82,12 @@ def _request_summary(news_text: str, media_kind: MediaKind | None = None) -> str
     )
 
     if not response.choices:
-        return None
+        return ModelAnswer(None, None)
 
-    content = response.choices[0].message.content
-    return content.strip() if content else None
+    choice = response.choices[0]
+    content = choice.message.content
+    text = content.strip() if content else None
+    return ModelAnswer(text, choice.finish_reason)
 
 
 def summarize_news_posts(
@@ -96,19 +100,24 @@ def summarize_news_posts(
     try:
         # خروجی خالی یا غیرفارسی قابل استفاده نیست؛ چند بار تلاش کن تا یک اجرا
         # با یک پاسخ بد وسط کار نخوابد.
+        answer: ModelAnswer | None = None
+
         for attempt in range(MAX_BAD_RESPONSE_RETRIES + 1):
-            content = _request_summary(news_text, media_kind)
-            if content is not None and _looks_persian(content):
-                return content
+            answer = _request_summary(news_text, media_kind)
+            if answer.text is not None and _looks_persian(answer.text):
+                return answer.text
             if attempt < MAX_BAD_RESPONSE_RETRIES:
-                reason = "خالی" if content is None else "غیرفارسی"
+                reason = "خالی" if answer.text is None else "غیرفارسی"
                 print(
-                    f"⚠ پاسخ {reason} از مدل؛ تلاش دوباره "
+                    f"⚠ پاسخ {reason} از مدل ({describe_answer(answer)}); تلاش دوباره "
                     f"({attempt + 1}/{MAX_BAD_RESPONSE_RETRIES})"
                 )
                 time.sleep(1)
 
-        raise RuntimeError("پاسخ هوش مصنوعی پس از چند تلاش قابل استفاده نبود")
+        raise RuntimeError(
+            "پاسخ هوش مصنوعی پس از چند تلاش قابل استفاده نبود "
+            f"({describe_answer(answer)})"
+        )
 
     except Exception as e:
         print(f"خطا در ارتباط با مدل: {e}")

@@ -3,8 +3,10 @@ import pytest
 import news_collector
 import news_importance
 import main
+import open_ai_client_provider
 from model import Importance, NewsPost
-from news_importance import ModelAnswer, _match_importance, judge_importance
+from news_importance import _match_importance, judge_importance
+from open_ai_client_provider import ModelAnswer
 
 
 def _answer(text, finish_reason="stop"):
@@ -147,8 +149,8 @@ def test_huge_raw_answer_is_truncated_in_the_log(monkeypatch, capsys):
         judge_importance("خبری برای سنجش اهمیت")
 
     output = capsys.readouterr().out
-    assert len(output) < news_importance.RAW_ANSWER_LOG_CHARS * 20
-    assert news_importance.RAW_ANSWER_LOG_CHARS < len(huge)
+    assert len(output) < open_ai_client_provider.RAW_ANSWER_LOG_CHARS * 20
+    assert open_ai_client_provider.RAW_ANSWER_LOG_CHARS < len(huge)
 
 
 def test_importance_transport_error_is_retried_then_succeeds(monkeypatch):

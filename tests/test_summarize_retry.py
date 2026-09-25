@@ -2,6 +2,11 @@ import pytest
 
 import news_summarizer
 from news_summarizer import _looks_persian, summarize_news_posts
+from open_ai_client_provider import ModelAnswer
+
+
+def _answer(text, finish_reason="stop"):
+    return ModelAnswer(text, finish_reason)
 
 # پاسخ واقعی که یک backend ضعیف برای یک پست فارسی برگرداند و مستقیم به کانال رفت.
 CHINESE_REFUSAL = "关于这个问题，我没有相关信息，您可以尝试问我其它问题，我会尽力为您解答~"
@@ -18,7 +23,7 @@ def test_empty_response_is_retried_then_succeeds(monkeypatch):
 
     def flaky(_text, _media_kind=None):
         calls["n"] += 1
-        return None if calls["n"] < 3 else PERSIAN_SUMMARY
+        return _answer(None, None) if calls["n"] < 3 else _answer(PERSIAN_SUMMARY)
 
     monkeypatch.setattr(news_summarizer, "_request_summary", flaky)
 
@@ -33,7 +38,7 @@ def test_persistent_empty_response_raises_after_retries(monkeypatch):
 
     def always_empty(_text, _media_kind=None):
         calls["n"] += 1
-        return None
+        return _answer(None, None)
 
     monkeypatch.setattr(news_summarizer, "_request_summary", always_empty)
 
@@ -50,7 +55,7 @@ def test_non_persian_response_is_retried_then_succeeds(monkeypatch):
 
     def off_language(_text, _media_kind=None):
         calls["n"] += 1
-        return CHINESE_REFUSAL if calls["n"] < 3 else PERSIAN_SUMMARY
+        return _answer(CHINESE_REFUSAL) if calls["n"] < 3 else _answer(PERSIAN_SUMMARY)
 
     monkeypatch.setattr(news_summarizer, "_request_summary", off_language)
 
@@ -65,7 +70,7 @@ def test_persistent_non_persian_response_raises_after_retries(monkeypatch):
 
     def always_chinese(_text, _media_kind=None):
         calls["n"] += 1
-        return CHINESE_REFUSAL
+        return _answer(CHINESE_REFUSAL)
 
     monkeypatch.setattr(news_summarizer, "_request_summary", always_chinese)
 
@@ -74,6 +79,30 @@ def test_persistent_non_persian_response_raises_after_retries(monkeypatch):
         summarize_news_posts("یک خبر برای خلاصه‌سازی")
 
     assert calls["n"] == news_summarizer.MAX_BAD_RESPONSE_RETRIES + 1
+
+
+def test_unusable_summary_is_logged_with_the_raw_output(monkeypatch, capsys):
+    """پاسخ بی‌استفاده باید با متن خام خودش لاگ شود.
+
+    تا ۲۵ سپتامبر ۲۰۲۶ فقط «پاسخ غیرفارسی از مدل» چاپ می‌شد و معلوم نبود مدل
+    چه نوشته بود؛ حالا شکل خرابی از لاگ خوانده می‌شود.
+    """
+    monkeypatch.setattr(news_summarizer.time, "sleep", lambda _s: None)
+
+    monkeypatch.setattr(
+        news_summarizer,
+        "_request_summary",
+        lambda _text, _media_kind=None: _answer(CHINESE_REFUSAL, "length"),
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        summarize_news_posts("یک خبر برای خلاصه‌سازی")
+
+    output = capsys.readouterr().out
+    assert "finish_reason=length" in output
+    assert CHINESE_REFUSAL[:40] in output
+    # همان توصیف در پیام استثنا هم می‌آید، چون لاگ نهایی از همان ساخته می‌شود.
+    assert "finish_reason=length" in str(excinfo.value)
 
 
 def test_looks_persian_rejects_other_scripts():
