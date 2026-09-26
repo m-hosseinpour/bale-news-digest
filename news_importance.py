@@ -56,11 +56,11 @@ normal = worth knowing but not urgent: official statements, positions, reactions
 
 trivial = not really news:
 - advertisements and promotions of ANY kind: selling or promoting a product or service, discounts, registration or subscription calls, "contact us", prices and phone numbers, join/invite links, sponsored posts. ALWAYS trivial, even when the wording sounds urgent, official, or news-like.
-- daily press reviews and newspaper front-page lists, calendars, vague slogans and metaphors, ceremonial or routine visits, routine personnel news.
+- daily press reviews and newspaper front-page lists, calendars, ceremonial or routine visits, routine personnel news, and slogans or mottos that report no fact.
 
 If the text is a digest — a list of several separate short news items (for example a "آخرین خبرهای کوتاه" post) — judge the MOST IMPORTANT single item in that list and answer with ITS importance, not with the average of the list.
 
-Most items are normal, not major. Choose major ONLY when the text describes a concrete event that has already happened with consequences. A statement, speech, opinion, prediction, threat, or the announcement of something that WILL happen is NOT major, even when the topic is war, politics, or the economy. An unexplained or unclear incident is normal, not major, until the text itself says what happened and what it cost. Judge only the main news content, not the poster's tone or the emojis.
+Most items are normal, not major. Choose major ONLY when the text describes a concrete event that has already happened with consequences. A statement, speech, opinion, prediction, threat, or the announcement of something that WILL happen is NOT major, even when the topic is war, politics, or the economy. A line that is quoted from, or attributed to, a named person or body is a statement, however rhetorical, metaphorical, or slogan-like its wording — never treat it as a slogan. An unexplained or unclear incident is normal, not major, until the text itself says what happened and what it cost. Judge only the main news content, not the poster's tone or the emojis.
 
 CRITICAL: Output ONLY the one lowercase word — major, normal, or trivial. No explanation, no punctuation, no list, no extra words. Do not repeat the list of options; write the single word that answers."""
 
