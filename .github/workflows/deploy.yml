@@ -38,9 +38,13 @@ jobs:
 
           uv sync
 
-          # سرویس‌ها سطح کاربرند، پس دیگر sudo لازم نیست. یک شل غیرتعاملی SSH خودش
-          # XDG_RUNTIME_DIR ندارد و بدون آن systemctl --user با
-          # «Failed to connect to bus: No medium found» شکست می‌خورد.
+          # سرویس‌ها سطح کاربرند، پس دیگر sudo لازم نیست. دو پیش‌نیاز:
+          #   ۱) SERVER_USER باید خودِ mahdi باشد — مدیر systemd سطح کاربر per-user
+          #      است و /run/user/1000 فقط برای mahdi خواندنی است؛ با کاربر دیگری
+          #      systemctl --user به مدیر همان کاربر وصل می‌شود، نه به این سرویس‌ها.
+          #   ۲) یک شل غیرتعاملی SSH خودش XDG_RUNTIME_DIR ندارد و بدون آن
+          #      systemctl --user با «Failed to connect to bus: No medium found»
+          #      شکست می‌خورد.
           export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 
           # یونیت‌های نسخه‌بندی‌شدهٔ ریپو روی ماشین نصب می‌شوند تا یونیت مستقر از
