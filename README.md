@@ -142,6 +142,9 @@ uv run python main.py
 0 * * * * cd /path/to/project && /path/to/uv run python main.py >> logs/run.log 2>&1
 ```
 
+در production از cron استفاده نمی‌شود؛ یک تایمر systemd هر ۱۵ دقیقه اجرا را
+شلیک می‌کند — بخش [سرویس systemd](#سرویس-systemd-سطح-کاربر).
+
 ## تست‌ها
 
 تست‌های واحد به شبکه کاری ندارند:
@@ -194,6 +197,58 @@ uv run gunicorn --bind 127.0.0.1:8001 --workers 1 bot_webhook:app
 curl http://127.0.0.1:8001/health
 ```
 
+## سرویس systemd (سطح کاربر)
+
+سرویس‌ها **سطح کاربر** اجرا می‌شوند، نه روت: ری‌استارت دیگر `sudo` نمی‌خواهد و اکشن
+دیپلوی با `systemctl --user` کار می‌کند. یونیت‌ها در `deploy/user/` نسخه‌بندی شده‌اند و
+دیپلوی همان‌ها را در `~/.config/systemd/user/` نصب می‌کند، پس یونیتِ مستقر از یونیتِ
+کامیت‌شده جدا نمی‌افتد.
+
+نصب (اکشن دیپلوی همین را انجام می‌دهد):
+
+```shell
+mkdir -p ~/.config/systemd/user
+cp deploy/user/bale-news-digest.service \
+   deploy/user/bale-news-digest.timer \
+   deploy/user/news-bot-webhook.service \
+   ~/.config/systemd/user/
+systemctl --user daemon-reload
+```
+
+**`linger` الزامی است.** بدون آن مدیر کاربر با بسته‌شدن آخرین سشن از بین می‌رود،
+تایمر و سرویس‌ها خاموش می‌شوند، و دیپلوی هم وقتی کسی لاگین نیست به bus وصل نمی‌شود:
+
+```shell
+sudo loginctl enable-linger "$USER"     # یک‌بار، با sudo
+```
+
+فعال‌کردن (بدون sudo):
+
+```shell
+systemctl --user enable --now bale-news-digest.timer
+systemctl --user enable --now news-bot-webhook.service
+```
+
+بررسی وضعیت و لاگ:
+
+```shell
+systemctl --user status news-bot-webhook.service --no-pager
+systemctl --user list-timers
+journalctl --user -u bale-news-digest.service --no-pager
+```
+
+اگر سرویس روی سرور **قبلاً** به‌صورت روت نصب بوده، اول نسخهٔ روت را خاموش و حذف کن؛
+وگرنه دو نسخه از یک سرویس با هم بالا می‌آیند (هر دو روی پورت ۸۰۰۱، و دو تایمر
+۱۵ دقیقه‌ای که هر پست را دو بار پردازش می‌کنند):
+
+```shell
+sudo systemctl disable --now bale-news-digest.timer news-bot-webhook.service
+sudo rm /etc/systemd/system/bale-news-digest.service \
+        /etc/systemd/system/bale-news-digest.timer \
+        /etc/systemd/system/news-bot-webhook.service
+sudo systemctl daemon-reload
+```
+
 ## ثبت webhook ربات
 
 بعد از اینکه آدرس عمومی webhook با HTTPS آماده شد:
@@ -228,7 +283,7 @@ uv run python set_webhook.py
   این موارد در لاگ:
 
   ```shell
-  journalctl -u bale-news-digest.service --no-pager | grep -E "خطا در سنجش اهمیت|\[ \? \]"
+  journalctl --user -u bale-news-digest.service --no-pager | grep -E "خطا در سنجش اهمیت|\[ \? \]"
   ```
 
   هر شکستِ پاسخ بی‌استفاده — چه در سنجش اهمیت و چه در خلاصه‌ساز —

@@ -38,9 +38,26 @@ jobs:
 
           uv sync
 
-          sudo systemctl restart news-bot-webhook.service
+          # سرویس‌ها سطح کاربرند، پس دیگر sudo لازم نیست. یک شل غیرتعاملی SSH خودش
+          # XDG_RUNTIME_DIR ندارد و بدون آن systemctl --user با
+          # «Failed to connect to bus: No medium found» شکست می‌خورد.
+          export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+
+          # یونیت‌های نسخه‌بندی‌شدهٔ ریپو روی ماشین نصب می‌شوند تا یونیت مستقر از
+          # یونیتِ کامیت‌شده جدا نیفتد.
+          mkdir -p ~/.config/systemd/user
+          cp deploy/user/bale-news-digest.service \
+             deploy/user/bale-news-digest.timer \
+             deploy/user/news-bot-webhook.service \
+             ~/.config/systemd/user/
+          systemctl --user daemon-reload
+
+          # enable برای زنده‌ماندن بعد از ریبوت لازم است و اگر از قبل فعال باشد بی‌اثر است.
+          systemctl --user enable bale-news-digest.timer news-bot-webhook.service
+
+          systemctl --user restart news-bot-webhook.service
           sleep 2
-          sudo systemctl status news-bot-webhook.service --no-pager
+          systemctl --user status news-bot-webhook.service --no-pager
           EOF
           
           # پاک‌سازی کلید

@@ -1,0 +1,24 @@
+; bale-news-digest — user-level systemd unit (one collect/summarize run).
+;
+; Install to ~/.config/systemd/user/ (the deploy workflow does this), then:
+;   systemctl --user daemon-reload && systemctl --user enable --now bale-news-digest.timer
+;
+; Two things differ from the old /etc/systemd/system unit: a user unit carries no
+; User=/Group=, and the user manager has no network-online.target, so that ordering
+; is gone. A run that starts before the network is up just fails and waits for the
+; next tick — the timer fires every 15 minutes.
+;
+; The timer is what schedules this oneshot; this unit is deliberately static and has
+; no [Install] section, so enabling the service alone does nothing.
+;
+; Linger must be on — `sudo loginctl enable-linger $USER` — otherwise the user manager
+; (and this timer with it) is torn down when the last session ends.
+
+[Unit]
+Description=run bale-news-digest once
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/mahdi/workspace/bale-news-digest/
+ExecStart=/home/mahdi/workspace/bale-news-digest/.venv/bin/python /home/mahdi/workspace/bale-news-digest/main.py
+Environment=PYTHONUNBUFFERED=1

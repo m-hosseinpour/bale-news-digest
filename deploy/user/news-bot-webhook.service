@@ -1,0 +1,21 @@
+; news-bot-webhook — user-level systemd unit (gunicorn on 127.0.0.1:8001).
+;
+; Install to ~/.config/systemd/user/ (the deploy workflow does this), then:
+;   systemctl --user daemon-reload && systemctl --user enable --now news-bot-webhook.service
+;
+; A user unit carries no User=/Group=, and the user manager has no network-online.target,
+; so that ordering is gone; Restart=always covers a boot that beats the network.
+; Linger must be on (`sudo loginctl enable-linger $USER`) or this dies with the session.
+
+[Unit]
+Description=News Bot Webhook (Gunicorn + uv)
+
+[Service]
+Type=exec
+WorkingDirectory=/home/mahdi/workspace/bale-news-digest
+ExecStart=/home/mahdi/workspace/bale-news-digest/.venv/bin/gunicorn --bind 127.0.0.1:8001 --workers 1 bot_webhook:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

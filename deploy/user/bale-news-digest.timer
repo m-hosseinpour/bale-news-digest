@@ -1,0 +1,15 @@
+; bale-news-digest timer — user-level. See bale-news-digest.service for install notes.
+;
+; This timer, not the service, is the unit to enable:
+;   systemctl --user enable --now bale-news-digest.timer
+
+[Unit]
+Description=Run bale-news-digest every X minutes
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+RandomizedDelaySec=2m
+
+[Install]
+WantedBy=timers.target
