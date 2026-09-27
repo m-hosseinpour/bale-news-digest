@@ -35,17 +35,24 @@ EMOJI_PATTERN = re.compile(
 # ۲۰۰ اما بدون choices می‌دهد) یا هیچ برچسب معتبری از فهرست در آن نیست.
 MAX_BAD_RESPONSE_RETRIES = 3
 
-# این پرامپت فقط دو چیز را اجبار می‌کند: تبلیغ همیشه trivial، و خبر ورزشی
-# غیرمهم trivial. بقیهٔ قضاوت با خود مدل است (قبلاً بیانیه/سخنرانی/پیش‌بینی
-# صراحتاً از major کنار گذاشته می‌شد و فهرست بلندی از دسته‌های normal داشت).
+# این پرامپت دو چیز را اجبار می‌کند (تبلیغ همیشه trivial، خبر ورزشی غیرمهم
+# trivial) و یک سختگیری کلی می‌گذارد: فقط چیزِ «تازه» می‌تواند major باشد؛
+# گذشته‌نگر (سالگرد، «به مناسبت …»، آرشیو، بازگویی واقعهٔ قدیم) در بهترین حالت
+# normal است؛ بیشتر خبرها major نیستند و در شک باید برچسب پایین‌تر را گرفت.
+# بقیهٔ قضاوت با خود مدل است — تعریف مثبتِ major و فهرست normal عمداً نیستند.
 #
-# روی ۴۶ پست واقعی سنجیده شده (measurements/free_gate_after.json، یک قرعه در
-# ۲۷ سپتامبر): تبلیغ ۱۰/۱۰ و ورزشی روتین ۸/۸ trivial ماندند؛ و ۱۰ از ۱۶
-# بیانیه/موضعی که پرامپت قبلی همیشه normal می‌کرد major شدند. بهای پذیرفته‌شدهٔ
-# همین آزادی: ۴ رویداد مشخصی که پرامپت قبلی همیشه major می‌فرستاد این بار
-# normal برگشتند (عبور نفت برنت از ۱۰۵ دلار، رکورد گازوئیل اروپا، پیشروی ترکیه
-# در شمال عراق، بارگیری مخفی نفتکش‌ها) — فهرست‌های پرامپت قبلی فقط سقف نبودند،
-# تعریف مثبتِ major هم بودند و حذفشان مدل را در هر دو جهت نوسانی کرده است.
+# دو سنجش، هر دو یک قرعه در ۲۷ سپتامبر:
+# - نسخهٔ آزاد روی ۴۶ پست (measurements/free_gate_after.json): تبلیغ ۱۰/۱۰ و
+#   ورزشی روتین ۸/۸ trivial ماندند و ۱۰ از ۱۶ بیانیه major شد، ولی ۴ رویداد
+#   مشخص که پرامپت قبلی همیشه major می‌فرستاد normal برگشتند (عبور نفت برنت از
+#   ۱۰۵ دلار، رکورد گازوئیل اروپا، پیشروی ترکیه در شمال عراق، بارگیری مخفی
+#   نفت‌کش‌ها) — فهرست‌های پرامپت قبلی فقط سقف نبودند، تعریف مثبتِ major هم
+#   بودند.
+# - پس از افزودن بند سختگیری، روی ۱۳ پست (measurements/strict_gate_after2.json):
+#   هر دو پست سالگردِ نصرالله trivial شدند (پیش‌تر major رفته بودند)، تبلیغ ۲/۲
+#   trivial ماند، ۳ رویداد از آن ۴ برگشتند و بیانیه‌های صعودکرده به normal
+#   برگشتند. هزینه: گزارشی مثل «تصاویری از حملات جدید پاکستان…» که پیامدش را در
+#   متن نمی‌گوید normal می‌شود، نه major.
 IMPORTANCE_SYSTEM_PROMPT = """You judge how important a Persian news item is, for a reader who has very little time and only wants the news that truly matters.
 Output ONLY one word from this list, lowercase, nothing else:
 major, normal, trivial
@@ -53,6 +60,10 @@ major, normal, trivial
 major = a news item that the reader should know right now, even if they read nothing else today.
 normal = worth knowing but not urgent.
 trivial = not really news.
+
+Judge the news itself, not its topic, and remember that only something NEW can be major: something that has just happened, or has just been announced, with a real consequence. A retrospective is not news — an anniversary or commemorative post, an item published «به مناسبت …» or marking a past event, archive or file material, a repost or a re-telling of an old event, or a piece about the past. These are normal at best, and trivial when they carry no new fact at all.
+
+Most items are not major. Choose major only when the reader would be worse off today for not knowing it. When the text leaves you unsure between two labels, choose the lower one.
 
 Two rules always apply, whatever the text sounds like:
 - Advertisements and promotions of ANY kind are trivial: selling or promoting a product or service, discounts, registration or subscription calls, "contact us", prices and phone numbers, join/invite links, sponsored posts. ALWAYS trivial, even when the wording sounds urgent, official, or news-like.
