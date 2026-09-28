@@ -10,7 +10,7 @@ A bot that automatically fetches, judges the importance of, and summarizes news 
 
 - Already-seen posts are persisted in `news_posts.json` (keeps the last `MAX_STORED_POSTS`, default 5000). `sid` is exactly `f"{rid}-{date}"` as returned by the API (`rid` is a JSON string, may be a negative int64) — changing it would re-send every post.
 - The channel's internal peer id comes from `PEER_ID` in `.env` and is never re-discovered at runtime; `scripts/resolve_peer_id.py` prints it once.
-- Each post that passes the importance gate is summarized individually and dispatched immediately to the main channel (`BALE_BOT_CHAT_ID`) only — there are no per-category channels and no routing to decide.
+- Each post that passes the importance gate is summarized individually and sent to the main channel (`BALE_BOT_CHAT_ID`) only — there are no per-category channels and no routing to decide. A run collects **all** its new posts first and then sends them oldest→newest (chronological order in the channel, added 2026-09-28); the fetch itself stays newest→oldest because that is what keeps the seen-boundary single in `fetch_new_posts`.
 - If the post carries an attachment, it is sent with the summary via `sendPhoto`/`sendVideo`/`sendAudio`/`sendDocument` using the `documentMessage.url` — Bale downloads it server-side, so nothing is uploaded by us. Media has no `file_id` (LoadHistory doesn't return one) and `copyMessage`/`forwardMessage` is impossible (bot has no access to the source channel).
 - Message text is sent as plain text; only the last line is a markdown link `[لینک خبر مرجع](url)`. No `parse_mode` is set.
 

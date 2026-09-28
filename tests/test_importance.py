@@ -278,7 +278,33 @@ def test_run_once_dispatches_only_posts_that_pass_the_gate(monkeypatch):
 
     # فقط major می‌رود؛ normal و trivial نه. پست ۳ سنجشش شکست خورده و
     # fail-open فرستاده می‌شود — تنها راه نشتی هنگام خرابی گیتوی.
-    assert [p.sid for p in dispatched] == ["1-1", "3-3"]
+    assert {p.sid for p in dispatched} == {"1-1", "3-3"}
+
+
+def test_run_once_sends_oldest_first(monkeypatch):
+    """ترتیب ارسال باید ترتیب زمان باشد، نه ترتیب واکشی.
+
+    واکشی جدیدترین→قدیمی‌ترین است (همان ترتیبی که مرزِ «دیده‌شده» را یکتا نگه
+    می‌دارد)؛ بدون معکوس‌کردن، کانال مقصد بعد از یک وقفه یک بلوک خبری برعکسِ
+    زمان می‌گرفت. `fetch_new_posts` عمداً همان ترتیب واکشی را yield می‌کند.
+    """
+    monkeypatch.setattr(main, "MIN_IMPORTANCE", Importance.MAJOR)
+
+    posts = [
+        NewsPost(sid="1-3000", text="جدیدترین", importance=Importance.MAJOR),
+        NewsPost(sid="2-2000", text="میانی", importance=Importance.MAJOR),
+        NewsPost(sid="3-1000", text="قدیمی‌ترین", importance=Importance.MAJOR),
+    ]
+
+    dispatched: list[NewsPost] = []
+    monkeypatch.setattr(main, "load_posts", lambda: [])
+    monkeypatch.setattr(main, "save_posts", lambda _posts: None)
+    monkeypatch.setattr(main, "dispatch_post", dispatched.append)
+    monkeypatch.setattr(main, "fetch_new_posts", lambda _seen: iter(posts))
+
+    main.run_once()
+
+    assert [p.sid for p in dispatched] == ["3-1000", "2-2000", "1-3000"]
 
 
 # ---------- collector wiring ----------

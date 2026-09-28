@@ -36,9 +36,13 @@ def run_once() -> None:
     all_posts: list[NewsPost] = load_posts()
     seen_sids: set[str] = {p.sid for p in all_posts}
 
-    for new_post in fetch_new_posts(seen_sids):
+    # واکشی از جدیدترین به قدیمی‌ترین پیش می‌رود، چون همان ترتیب است که مرزِ
+    # «دیده‌شده» را یکتا نگه می‌دارد؛ ولی کانال مقصد باید خبر را به ترتیب زمان
+    # بگیرد. پس کل ران اول جمع می‌شود و بعد از قدیمی‌ترین به جدیدترین می‌رود.
+    new_posts = list(fetch_new_posts(seen_sids))
+
+    for new_post in reversed(new_posts):
         all_posts.append(new_post)
-        seen_sids.add(new_post.sid)
 
         if _meets_importance(new_post):
             dispatch_post(new_post)
