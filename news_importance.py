@@ -53,7 +53,21 @@ MAX_BAD_RESPONSE_RETRIES = 3
 #   trivial ماند، ۳ رویداد از آن ۴ برگشتند و بیانیه‌های صعودکرده به normal
 #   برگشتند. هزینه: گزارشی مثل «تصاویری از حملات جدید پاکستان…» که پیامدش را در
 #   متن نمی‌گوید normal می‌شود، نه major.
-IMPORTANCE_SYSTEM_PROMPT = """You judge how important a Persian news item is, for a reader who has very little time and only wants the news that truly matters.
+# - نسخهٔ سوم (۳۰ سپتامبر) دو تغییر داد: «پیامد واقعی» به پیامد برای همین
+#   خواننده گره خورد — خبر بزرگِ داخلیِ کشورهای دیگر (سیاست داخلی، دادگاه،
+#   انتخابات، علم و فضا) اینجا major نیست — و فهرست گذشته‌نگر «خاطره و روایت
+#   اول‌شخص از واقعهٔ گذشته» را هم گرفت. سنجش روی ۳۱ پست ۷ مهر، دو قرعه، کنار
+#   فایل قبل و ۱۱ پست کنترل (measurements/review929_before.json و
+#   review929_after.json): هر ۸ کنترلِ major و هر ۳ کنترلِ trivial دست‌نخورده
+#   ماندند؛ روی ۲۰ پست مورد اختلاف، major از ۲۳ قرعه از ۴۰ به ۱۶ افتاد — ۶
+#   ارسال زائد پایین آمد (روایت مک‌گورک به normal/trivial، آتش‌سوزی تهران،
+#   کناره‌گیری مقام دادگستری آمریکا، دعوای CNN با کاخ سفید، استارشیپ، هشدار
+#   سیلاب) و ۳ جاماندهٔ مشخص بالا آمد (نیروگاه روساتم، سفر نتانیاهو به ابوظبی،
+#   گزارش المیادین). هزینهٔ باقی‌مانده: دو پست هنوز در یک قرعه از دو قرعه major
+#   می‌شوند (شایعهٔ صدام حفتر، هشدار نارنجی هوا) و یک بیانیهٔ دکترینی ارتش هم
+#   major شد. مدل روی خبرِ بیگانه گاهی تا trivial پایین می‌رود در حالی که normal
+#   درست‌تر است؛ با آستانهٔ فعلی (major) این بر تصمیم ارسال اثری ندارد.
+IMPORTANCE_SYSTEM_PROMPT = """You judge how important a Persian news item is, for a reader who has very little time and only wants the news that truly matters. This reader follows Iran — its security, its war and diplomacy, its economy and the prices people pay — and the region around it.
 Output ONLY one word from this list, lowercase, nothing else:
 major, normal, trivial
 
@@ -61,7 +75,9 @@ major = a news item that the reader should know right now, even if they read not
 normal = worth knowing but not urgent.
 trivial = not really news.
 
-Judge the news itself, not its topic, and remember that only something NEW can be major: something that has just happened, or has just been announced, with a real consequence. A retrospective is not news — an anniversary or commemorative post, an item published «به مناسبت …» or marking a past event, archive or file material, a repost or a re-telling of an old event, or a piece about the past. These are normal at best, and trivial when they carry no new fact at all.
+Judge the news by what it actually does, not by its topic, and remember that only something NEW can be major: something that has just happened, or has just been announced, with a real consequence for this reader. A retrospective is not news — an anniversary or commemorative post, an item published «به مناسبت …» or marking a past event, archive or file material, a repost or a re-telling of an old event, a memoir, or a first-person account in which someone recounts what happened at some earlier time. These are normal at best, and trivial when they carry no new fact at all.
+
+The consequence has to be a consequence for THIS reader, not merely a dramatic story somewhere. What happens to Iran, or to the war, the negotiations, oil, the currency or the prices the reader pays, is major. A big story inside another country's own affairs — its domestic politics, its courts, its elections, its science or space programme — is not major here, however loudly it is reported there, unless it changes something for Iran or for this region.
 
 Most items are not major. Choose major only when the reader would be worse off today for not knowing it. When the text leaves you unsure between two labels, choose the lower one.
 
