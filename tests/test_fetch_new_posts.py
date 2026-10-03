@@ -125,13 +125,19 @@ def test_fetch_new_posts_respects_post_cap(monkeypatch):
     monkeypatch.setattr(news_collector, "PEER_ID", 1)
     monkeypatch.setattr(news_collector, "HISTORY_PAGE_SLEEP", 0)
     monkeypatch.setattr(news_collector, "MAX_POSTS_PER_RUN", 3)
+    monkeypatch.setattr(news_collector, "MAX_PAGES_PER_RUN", 2)
 
-    page = [_entry(str(d), d, f"خبر {d}") for d in range(2000, 1980, -1)]
-    monkeypatch.setattr(news_collector, "load_history", lambda peer_id, date: list(page))
+    pages = [
+        [_entry(str(d), d, f"خبر {d}") for d in range(2000, 1990, -1)],
+        [_entry(str(d), d, f"خبر {d}") for d in range(1990, 1980, -1)],
+    ]
+    monkeypatch.setattr(
+        news_collector, "load_history", lambda peer_id, date: list(pages.pop(0))
+    )
 
     posts = list(fetch_new_posts(set()))
 
-    assert len(posts) == 3
+    assert [p.sid for p in posts] == ["2000-2000", "1999-1999", "1998-1998"]
 
 
 def test_fetch_new_posts_raises_when_pagination_stalls(monkeypatch):
@@ -195,9 +201,9 @@ def test_fetch_new_posts_attaches_media(monkeypatch):
 
     with_media = next(p for p in posts if p.sid == "1-2000")
     without_media = next(p for p in posts if p.sid == "2-1990")
-    assert with_media.media_url == url
+    assert [(m.url, m.kind) for m in with_media.media] == [(url, MediaKind.PHOTO)]
     assert with_media.media_kind is MediaKind.PHOTO
-    assert without_media.media_url is None
+    assert without_media.media == []
     assert without_media.media_kind is None
 
 

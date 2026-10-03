@@ -29,7 +29,7 @@ def dispatch_post(post: NewsPost) -> None:
     print('=' * 50 + ' MESSAGE-TO-SEND ' + '=' * 50)
     print(message)
 
-    send_post(message, post.media_url, post.media_kind, BALE_BOT_CHAT_ID)
+    send_post(message, post.media, BALE_BOT_CHAT_ID)
 
 
 def run_once() -> None:

@@ -26,11 +26,18 @@ class MediaKind(str, Enum):
     DOCUMENT = "document"
 
 
+class MediaItem(BaseModel):
+    """یک ضمیمهٔ پست. url لینک امضاشدهٔ عمومی است؛ file_id وجود ندارد."""
+
+    url: str
+    kind: MediaKind
+
+
 class NewsPost(BaseModel):
     sid: str
     text: str
-    media_url: str | None = None
-    media_kind: MediaKind | None = None
+    # آلبوم چند قلم دارد و به ترتیب کانال مبدأ می‌آید (قلم دارای کپشن اول).
+    media: list[MediaItem] = []
     # None یعنی سنجش شکست خورد (بعد از چند تلاش پاسخ قابل استفاده نبود).
     # در این حالت هنگام ارسال fail-open رفتار می‌کنیم تا خرابی گیتوی خبر را
     # بی‌صدا حذف نکند. متن بدون محتوا اینجا نمی‌رسد: collector آن را trivial
@@ -47,12 +54,7 @@ class NewsPost(BaseModel):
         except ValueError:
             return None
 
-    @field_validator("media_kind", mode="before")
-    @classmethod
-    def fallback_media_kind(cls, v):
-        if v is None or isinstance(v, MediaKind):
-            return v
-        try:
-            return MediaKind(v)
-        except ValueError:
-            return None
+    @property
+    def media_kind(self) -> MediaKind | None:
+        """نوع قلم اول — برای برچسب ضمیمه در خلاصه‌سازی، نه برای ارسال."""
+        return self.media[0].kind if self.media else None

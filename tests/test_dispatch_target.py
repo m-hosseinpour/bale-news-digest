@@ -13,7 +13,7 @@ def _post() -> NewsPost:
 def _stub_send(monkeypatch, chat_id: int | None) -> list[tuple[str, int]]:
     sent: list[tuple[str, int]] = []
 
-    def fake_send_post(text, media_url, media_kind, target) -> None:
+    def fake_send_post(text, media, target) -> None:
         sent.append((text, target))
 
     monkeypatch.setattr(main, "BALE_BOT_CHAT_ID", chat_id)

@@ -2,6 +2,7 @@ import json
 import re
 import time
 from collections.abc import Iterable
+from typing import NamedTuple
 
 import requests
 
@@ -13,7 +14,7 @@ from config import (
     MAX_POSTS_PER_RUN,
     PEER_ID,
 )
-from model import Importance, MediaKind, NewsPost
+from model import Importance, MediaItem, MediaKind, NewsPost
 from news_importance import judge_importance
 
 API_URL = "https://api.ble.ir/api/v1/LoadHistory"
@@ -244,6 +245,78 @@ def extract_text(message: dict) -> str:
     return ""
 
 
+# یک آلبوم در LoadHistory چند ردیف پشت‌سرهم است، نه یک ردیف: ردیف‌ها ۱ تا ۷
+# میلی‌ثانیه فاصله دارند (۱۶ آلبوم واقعی، مهر ۱۴۰۵) و فقط قدیمی‌ترین ردیف کپشن
+# دارد. ۱ ثانیه ۱۴۰ برابر فاصلهٔ دیده‌شده است.
+#
+# بهایش: ردیف بی‌کپشنی که کمتر از یک ثانیه بعد از یک پست دارای کپشن بیاید،
+# جزء آلبومش حساب می‌شود. در ۲۵۰ ردیف واقعی هیچ ردیف بی‌کپشنِ بیرون آلبوم دیده
+# نشد (دو پست مستقل هم ثانیه‌ها فاصله دارند، نه میلی‌ثانیه)، پس این حالت عملاً
+# رخ نمی‌دهد؛ اگر روزی دیده شد، باید فاصله را تنگ‌تر کرد.
+ALBUM_GAP_MS = 1000
+
+# آلبوم عکس/ویدیو با sendMediaGroup تست زنده شد (از جمله آلبوم مخلوط). گروه
+# سند و صوت تست نشد و بله با URL عکس خطای ۵۰۰ داد، پس گروه نمی‌شوند و رفتار
+# قبلی‌شان می‌ماند: فقط ردیف دارای کپشن می‌رود.
+GROUPABLE_MEDIA_KINDS = frozenset({MediaKind.PHOTO, MediaKind.VIDEO})
+
+
+class _Row(NamedTuple):
+    """یک ردیف تاریخچه با متن پاک‌شده و ضمیمه‌اش — یک‌بار حساب می‌شوند."""
+
+    entry: dict
+    text: str
+    media: MediaItem | None
+
+
+def _entry_media(entry: dict) -> MediaItem | None:
+    media = extract_media(entry["message"])
+    if media is None:
+        return None
+    url, kind = media
+    return MediaItem(url=url, kind=kind)
+
+
+def _group_album_rows(rows: list[_Row]) -> list[list[_Row]]:
+    """ردیف‌های تاریخچه را به گروه‌هایی که هر کدام یک پست‌اند تبدیل می‌کند.
+
+    ردیف دارای کپشن، سرِ آلبوم است و ردیف‌های بی‌متن بعد از آن (با فاصلهٔ
+    چند میلی‌ثانیه) قلم‌های همان آلبوم‌اند. بدون این گروه‌بندی، آن ردیف‌ها
+    بی‌متن‌اند و با شرط «متن خالی» دور ریخته می‌شوند — یعنی از آلبوم چهار
+    عکسی فقط یکی به کانال می‌رود.
+
+    خروجی از جدید به قدیم است تا ترتیب yield در fetch_new_posts عوض نشود.
+    """
+    ascending = sorted(rows, key=lambda row: row.entry["date"])
+    groups: list[list[_Row]] = []
+
+    index = 0
+    while index < len(ascending):
+        head = ascending[index]
+        group = [head]
+        index += 1
+
+        if head.text and head.media and head.media.kind in GROUPABLE_MEDIA_KINDS:
+            previous = head
+            while index < len(ascending):
+                follower = ascending[index]
+                if (
+                    not follower.media
+                    or follower.media.kind not in GROUPABLE_MEDIA_KINDS
+                    or follower.text
+                    or follower.entry["date"] - previous.entry["date"] > ALBUM_GAP_MS
+                ):
+                    break
+                group.append(follower)
+                previous = follower
+                index += 1
+
+        groups.append(group)
+
+    groups.reverse()
+    return groups
+
+
 def normalize_news_text(text: str, slug: str) -> str:
     """امضای تبلیغاتی کانال را از متن حذف می‌کند.
 
@@ -279,8 +352,10 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
 
     anchor = int(time.time() * 1000)
     collected_sids: set[str] = set()
-    new_posts = 0
+    entries: list[dict] = []
 
+    # کل ران اول جمع می‌شود، چون یک آلبوم می‌تواند از مرز صفحه بگذرد (آلبوم
+    # ۱۰ قلمی با صفحهٔ ۱۰ ردیفی همیشه می‌گذرد) و گروه‌بندی به هر دو صفحه نیاز دارد.
     for page_index in range(MAX_PAGES_PER_RUN):
         if page_index:
             time.sleep(HISTORY_PAGE_SLEEP)
@@ -288,7 +363,7 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
         history = load_history(peer_id, anchor)
         if not history:
             print("✓ به انتهای تاریخچهٔ کانال رسیدیم")
-            return
+            break
 
         if page_index:
             _ensure_page_progress(history, collected_sids)
@@ -307,51 +382,63 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
             if sid in collected_sids:
                 continue
             collected_sids.add(sid)
-
-            text = normalize_news_text(extract_text(entry["message"]), CHANNEL_SLUG)
-            if not text:
-                continue
-
-            media = extract_media(entry["message"])
-            media_url, media_kind = media if media else (None, None)
-
-            # یک فراخوانی برای هر پست، و همان تصمیم ارسال را می‌سازد.
-            importance: Importance | None = None
-            try:
-                judged = judge_importance(text)
-            except Exception as e:
-                # fail-open: بدون اهمیت هم پست فرستاده می‌شود.
-                print(f"⚠ خطا در سنجش اهمیت برای sid={sid}: {e}")
-            else:
-                # judged=None یعنی متن بعد از پاکسازی محتوایی نداشت (فقط ایموجی
-                # یا لینک). این «قضاوت نشده» نیست، حکم است: چیزی برای فرستادن
-                # نیست. None می‌گذاشتیم، fail-open آن را می‌فرستاد.
-                importance = judged if judged is not None else Importance.TRIVIAL
-
-            print("─" * 30 + " NEW-POST " + "─" * 30)
-            print(f"[ {importance.value if importance else '?'} ]")
-            print(text[:200])
-            print(f"🆔 {sid}")
-
-            new_posts += 1
-            yield NewsPost(
-                sid=sid,
-                text=text,
-                media_url=media_url,
-                media_kind=media_kind,
-                importance=importance,
-            )
-
-            if new_posts >= MAX_POSTS_PER_RUN:
-                print(f"⚠ به سقف {MAX_POSTS_PER_RUN} پست جدید رسیدیم")
-                return
+            entries.append(entry)
 
         if reached_old_post:
-            return
+            break
 
         anchor = min(entry["date"] for entry in history) - 1
     else:
         print(f"⚠ به سقف {MAX_PAGES_PER_RUN} صفحه رسیدیم")
+
+    rows = [
+        _Row(
+            entry=entry,
+            text=normalize_news_text(extract_text(entry["message"]), CHANNEL_SLUG),
+            media=_entry_media(entry),
+        )
+        for entry in entries
+    ]
+
+    new_posts = 0
+
+    for group in _group_album_rows(rows):
+        head = group[0]
+        if not head.text:
+            continue
+
+        sid = _build_sid(head.entry)
+        text = head.text
+
+        # یک فراخوانی برای هر پست، و همان تصمیم ارسال را می‌سازد.
+        importance: Importance | None = None
+        try:
+            judged = judge_importance(text)
+        except Exception as e:
+            # fail-open: بدون اهمیت هم پست فرستاده می‌شود.
+            print(f"⚠ خطا در سنجش اهمیت برای sid={sid}: {e}")
+        else:
+            # judged=None یعنی متن بعد از پاکسازی محتوایی نداشت (فقط ایموجی
+            # یا لینک). این «قضاوت نشده» نیست، حکم است: چیزی برای فرستادن
+            # نیست. None می‌گذاشتیم، fail-open آن را می‌فرستاد.
+            importance = judged if judged is not None else Importance.TRIVIAL
+
+        print("─" * 30 + " NEW-POST " + "─" * 30)
+        print(f"[ {importance.value if importance else '?'} ]")
+        print(text[:200])
+        print(f"🆔 {sid}")
+
+        new_posts += 1
+        yield NewsPost(
+            sid=sid,
+            text=text,
+            media=[row.media for row in group if row.media],
+            importance=importance,
+        )
+
+        if new_posts >= MAX_POSTS_PER_RUN:
+            print(f"⚠ به سقف {MAX_POSTS_PER_RUN} پست جدید رسیدیم")
+            return
 
 
 if __name__ == "__main__":
