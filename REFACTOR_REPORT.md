@@ -3,7 +3,7 @@
 > ⚠ **تصویر تاریخی (frozen snapshot).** این گزارش وضعیت برنچ `refactor/collector-api` در
 > تاریخ ۱۴۰۵/۰۷/۰۱ را ثبت می‌کند و به‌روز نمی‌شود. بخش‌هایی از آن امروز دیگر درست نیست:
 > `test.py` (به‌همراه کل مرحلهٔ دسته‌بندی خبر) در کامیت `10c33e2` حذف شده و شمار تست‌ها
-> تغییر کرده. برای وضعیت فعلی به `README.md` و `CLAUDE.md` نگاه کن.
+> تغییر کرده. برای وضعیت فعلی به `README.md` و `AGENTS.md` نگاه کن.
 
 برنچ: `refactor/collector-api` · تاریخ: ۱۴۰۵/۰۷/۰۱ (2026-09-23) · بدون push (طبق بریف، تصمیم با هماهنگ‌کننده)
 
@@ -22,7 +22,7 @@
 | `install_chromium.py` | حذف کامل فایل. |
 | `.github/workflows/deploy.yml` | حذف مرحلهٔ `uv run python install_chromium.py` و کامنت توضیحی‌اش. |
 | `.env` / `.env.example` | کلیدهای Playwright/scroll حذف؛ `CHANNEL_SLUG` و `PEER_ID` اضافه. در `.env.example` مقدار `PEER_ID` فقط نمونه است. هیچ مقدار رازی خوانده/چاپ/کامیت نشد. |
-| `CLAUDE.md` | خط Main-Flow به‌روز شد؛ بولت Chromium/geo-block حذف و با تله‌های caption و anchor عوض شد؛ بخش Common Commands و یادداشت خطای شبکه اضافه شد. |
+| `AGENTS.md` | خط Main-Flow به‌روز شد؛ بولت Chromium/geo-block حذف و با تله‌های caption و anchor عوض شد؛ بخش Common Commands و یادداشت خطای شبکه اضافه شد. |
 | `README.md` | بخش «نصب مرورگر» و پیش‌نیاز Chromium کامل حذف شد؛ `CHANNEL_SLUG`/`PEER_ID` مستند شد؛ روش کشف peer id و بخش تست/verify اضافه شد. |
 
 ## ۲. معماری جدید در سه خط
@@ -121,7 +121,7 @@ $ uv run pytest -q
 - `_extract_raw_posts` و استفاده از BeautifulSoup و `page.content()`.
 - وابستگی‌های `playwright`, `beautifulsoup4`, `brotli` از `pyproject.toml` و `uv.lock`.
 - فایل `install_chromium.py` و مرحلهٔ CI مربوط به آن.
-- کلیدهای Playwright/scroll از `.env` و `.env.example` و بخش «نصب مرورگر» و پیش‌نیاز Chromium از README و بولت geo-block از `CLAUDE.md`.
+- کلیدهای Playwright/scroll از `.env` و `.env.example` و بخش «نصب مرورگر» و پیش‌نیاز Chromium از README و بولت geo-block از `AGENTS.md`.
 - `_env_bool` (پس از حذف `HEADLESS`/`DISABLE_IMAGES` بی‌مصرف شد).
 
 ## ۵. چیزهایی که نتوانستم تأیید کنی
