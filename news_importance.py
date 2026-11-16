@@ -35,11 +35,13 @@ EMOJI_PATTERN = re.compile(
 # ۲۰۰ اما بدون choices می‌دهد) یا هیچ برچسب معتبری از فهرست در آن نیست.
 MAX_BAD_RESPONSE_RETRIES = 3
 
-# این پرامپت دو چیز را اجبار می‌کند (تبلیغ همیشه trivial، خبر ورزشی غیرمهم
-# trivial) و یک سختگیری کلی می‌گذارد: فقط چیزِ «تازه» می‌تواند major باشد؛
-# گذشته‌نگر (سالگرد، «به مناسبت …»، آرشیو، بازگویی واقعهٔ قدیم) در بهترین حالت
-# normal است؛ بیشتر خبرها major نیستند و در شک باید برچسب پایین‌تر را گرفت.
-# بقیهٔ قضاوت با خود مدل است — تعریف مثبتِ major و فهرست normal عمداً نیستند.
+# این پرامپت دو چیز را از پیش پایین می‌آورد (تبلیغ همیشه trivial، خبر ورزشی
+# غیرمهم trivial) و یک چیز را از پیش بالا می‌برد (رویداد تازهٔ نبرد در ایران و
+# منطقه همیشه major) و یک سختگیری کلی می‌گذارد: فقط چیزِ «تازه» می‌تواند major
+# باشد؛ گذشته‌نگر (سالگرد، «به مناسبت …»، آرشیو، بازگویی واقعهٔ قدیم) در بهترین
+# حالت normal است؛ بیشتر خبرها major نیستند و در شک باید برچسب پایین‌تر را گرفت —
+# جز رویداد جنگی که بند خودش دارد. بقیهٔ قضاوت با خود مدل است؛ فهرست normal
+# عمداً نیست و تنها تعریف مثبتِ major همان بند جنگ است.
 #
 # دو سنجش، هر دو یک قرعه در ۲۷ سپتامبر:
 # - نسخهٔ آزاد روی ۴۶ پست (measurements/free_gate_after.json): تبلیغ ۱۰/۱۰ و
@@ -75,13 +77,23 @@ MAX_BAD_RESPONSE_RETRIES = 3
 #   گذشته‌نگر جنگی (خاطره، سالگرد، مرور جنگ) همان قاعدهٔ عادی را دارند.
 #   سنجش روی ۲۰ پست، دو قرعه (war_gate.sids.json؛ قبل war_gate_before.json، بعد
 #   war_gate_after.json): ۷ از ۸ رویداد جنگیِ normal (حملهٔ موشکی یمن به مواضع
-#   سعودی، درگیری کرکوک، گلوله‌باران جنوب لبنان، انهدام انبارهای سعودی، انحلال
+#   سعودی، درگیری کرکوک، گلوله‌باران جنوب لبنان، انهدام انبارهای سعودی، انهدام
 #   تیم پژاک در مرز، ساقط‌شدن پهپاد در غرب ایران، «صدای انفجار» قشم) در هر دو
-#   قرعه major شدند؛ ۳ تهدید لفظی، ۳ گذشته‌نگر جنگی، تبلیغ، ورزش و جنگ اوکراین
-#   تکان نخوردند و ۲ کنترل major هم major ماندند. تنها جامانده: انفجار بی‌توضیح
-#   بغداد. هزینه: «صدای انفجار» تأییدنشده در ایران حالا major می‌شود. سنجش تکی
-#   روی ۵ پست دیگر (war_gate_probe_after.json): تصاویر خرابه‌های قدیمی و انفجار
-#   کارخانهٔ ترکیه normal ماندند و پوشش عملیات تازه major شد.
+#   قرعه major شدند؛ ۳ تهدید لفظی، تبلیغ، ورزش و جنگ اوکراین تکان نخوردند، هیچ
+#   گذشته‌نگر جنگی major نشد (یکی یک قرعه پایین‌تر رفت) و ۲ کنترل major هم major
+#   ماندند. تنها جامانده: انفجار بی‌توضیح بغداد. هزینه: «صدای انفجار» تأییدنشده
+#   در ایران حالا major می‌شود. سنجش تکی روی ۵ پست دیگر
+#   (war_gate_probe_after.json): ۲ از ۵ بالا رفت — حملهٔ تازه به رادار آمریکا در
+#   بحرین (درست) و پوشش تصویری عملیات یمن در مأرب که تازه‌بودنش از متن معلوم
+#   نیست (یعنی ۱ از ۳ پست «تصاویری از …» بالا رفت) — و تصاویر خرابه‌های قدیمی و
+#   انفجار کارخانهٔ ترکیه normal ماندند.
+#   پس از بازبینی، جملهٔ «even when it is one-sided» تیزتر شد تا ادعای یک‌طرفه
+#   دربارهٔ رویدادی که رخ داده با تهدید/پیش‌بینی/تحلیل/تکذیب قاطی نشود؛ بازآزمون
+#   روی ۱۱ پست یک قرعه (war_gate_recheck_after.json) همان الگو را داد (ادعای
+#   یک‌طرفهٔ یمن major، بیانیه‌ها normal، تبلیغ و ورزش trivial، حملهٔ تازهٔ بحرین
+#   major، هیچ «تصاویری از …» major نشد) و دو مورد مبهم با دو قرعهٔ بیشتر
+#   (war_gate_recheck_after2.json): «صدای انفجار» قشم ۲ از ۳ major و انفجار
+#   بی‌توضیح بغداد ۲ از ۳ normal.
 IMPORTANCE_SYSTEM_PROMPT = """You judge how important a Persian news item is, for a reader who has very little time and only wants the news that truly matters. This reader follows Iran — its security, its war and diplomacy, its economy and the prices people pay — and the region around it.
 Output ONLY one word from this list, lowercase, nothing else:
 major, normal, trivial
@@ -94,7 +106,7 @@ Judge the news by what it actually does, not by its topic, and remember that onl
 
 The consequence has to be a consequence for THIS reader, not merely a dramatic story somewhere. What happens to Iran, or to the war, the negotiations, oil, the currency or the prices the reader pays, is major. A big story inside another country's own affairs — its domestic politics, its courts, its elections, its science or space programme — is not major here, however loudly it is reported there, unless it changes something for Iran or for this region.
 
-War is the exception, and a war development never takes the lower label: when the item reports a NEW development in the fighting in Iran or this region — an attack, strike, shelling, raid or exchange of fire; a missile or drone launched, intercepted or shot down; fighters, troops, ships or aircraft moved or deployed for a fight; casualties, damage or captures caused by fighting; a ceasefire reached, violated or broken — judge it major, however brief the report is, even when it is one-sided or does not spell out what happens next. The fighting itself is the consequence for this reader. This covers what the fighting does, not what people say about it: a statement, threat, prediction, commentary or analysis about the war, and a memoir, a first-person account or an anniversary of a past war, still follow the ordinary rules above.
+War is the exception, and a war development never takes the lower label: when the item reports a NEW development in the fighting in Iran or this region — an attack, strike, shelling, raid or exchange of fire; a missile or drone launched, intercepted or shot down; fighters, troops, ships or aircraft moved or deployed for a fight; casualties, damage or captures caused by fighting; a ceasefire reached, violated or broken — judge it major, however brief the report is, even when it does not spell out what happens next. The fighting itself is the consequence for this reader. What decides it is whether the text reports something the fighting has done: a one-sided claim that an attack, shelling, interception, hit or ceasefire did happen is still that development, but a stated intention, threat, prediction, assessment, commentary or analysis about the war, a denial that anything happened, and a memoir, first-person account or anniversary of a past war all follow the ordinary rules above.
 
 Most items are not major. Choose major only when the reader would be worse off today for not knowing it. When the text leaves you unsure between two labels, choose the lower one.
 
