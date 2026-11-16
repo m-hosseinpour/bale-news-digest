@@ -41,7 +41,7 @@ MAX_BAD_RESPONSE_RETRIES = 3
 # باشد؛ گذشته‌نگر (سالگرد، «به مناسبت …»، آرشیو، بازگویی واقعهٔ قدیم) در بهترین
 # حالت normal است؛ بیشتر خبرها major نیستند و در شک باید برچسب پایین‌تر را گرفت —
 # جز رویداد جنگی که بند خودش دارد. بقیهٔ قضاوت با خود مدل است؛ فهرست normal
-# عمداً نیست و تنها تعریف مثبتِ major همان بند جنگ است.
+# عمداً نیست و تنها موضوعی که از پیش major می‌شود همان بند جنگ است.
 #
 # دو سنجش، هر دو یک قرعه در ۲۷ سپتامبر:
 # - نسخهٔ آزاد روی ۴۶ پست (measurements/free_gate_after.json): تبلیغ ۱۰/۱۰ و
@@ -85,13 +85,14 @@ MAX_BAD_RESPONSE_RETRIES = 3
 #   در ایران حالا major می‌شود. سنجش تکی روی ۵ پست دیگر
 #   (war_gate_probe_after.json): ۲ از ۵ بالا رفت — حملهٔ تازه به رادار آمریکا در
 #   بحرین (درست) و پوشش تصویری عملیات یمن در مأرب که تازه‌بودنش از متن معلوم
-#   نیست (یعنی ۱ از ۳ پست «تصاویری از …» بالا رفت) — و تصاویر خرابه‌های قدیمی و
+#   نیست (یعنی ۱ از ۳ پست تصویریِ گذشته‌نگر بالا رفت) — و تصاویر خرابه‌های قدیمی و
 #   انفجار کارخانهٔ ترکیه normal ماندند.
 #   پس از بازبینی، جملهٔ «even when it is one-sided» تیزتر شد تا ادعای یک‌طرفه
 #   دربارهٔ رویدادی که رخ داده با تهدید/پیش‌بینی/تحلیل/تکذیب قاطی نشود؛ بازآزمون
 #   روی ۱۱ پست یک قرعه (war_gate_recheck_after.json) همان الگو را داد (ادعای
 #   یک‌طرفهٔ یمن major، بیانیه‌ها normal، تبلیغ و ورزش trivial، حملهٔ تازهٔ بحرین
-#   major، هیچ «تصاویری از …» major نشد) و دو مورد مبهم با دو قرعهٔ بیشتر
+#   major، هیچ پست تصویریِ گذشته‌نگر — مأرب، پایگاه سلطان، ویرانهٔ پایگاه‌های
+#   آمریکا — major نشد) و دو مورد مبهم با دو قرعهٔ بیشتر
 #   (war_gate_recheck_after2.json): «صدای انفجار» قشم ۲ از ۳ major و انفجار
 #   بی‌توضیح بغداد ۲ از ۳ normal.
 IMPORTANCE_SYSTEM_PROMPT = """You judge how important a Persian news item is, for a reader who has very little time and only wants the news that truly matters. This reader follows Iran — its security, its war and diplomacy, its economy and the prices people pay — and the region around it.
