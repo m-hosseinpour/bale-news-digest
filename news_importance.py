@@ -100,29 +100,37 @@ MAX_BAD_RESPONSE_RETRIES = 3
 # - نسخهٔ پنجم (۱۷ نوامبر ۲۰۲۶) بند جنگ را به بیانیه‌ها هم گسترد: هر حرف تازهٔ
 #   یک مقام ارشد دربارهٔ جنگِ ایران و منطقه — رئیس کشور یا دولت (رئیس‌جمهور،
 #   نخست‌وزیر، پادشاه، رهبر)، وزیر خارجه یا دفاع، فرماندهٔ ارشد، سخنگوی رسمی، یا
-#   رهبر گروه مسلح درگیر، از ایران یا کشورهای منطقه یا قدرت بزرگ دخیل — حتی وقتی
+#   رهبر گروه مسلح درگیر، از ایران یا کشورهای منطقه یا گروه مسلح درگیر یا قدرت
+#   بزرگ دخیل — حتی وقتی
 #   فقط حرف است (موضع، هشدار، تهدید، وعدهٔ پاسخ، شرط، تصمیم) major است. کسی که
-#   الان چنین مقامی دارد حتی اگر روحانی هم باشد حساب می‌شود؛ مقام سابق نه.
+#   الان چنین مقامی دارد حتی اگر روحانی هم باشد حساب می‌شود؛ کسی که تنها
+#   ادعایش مقام گذشته است نه.
 #   نمایندهٔ مجلس، روحانیِ بی‌مقام، کارشناس، خبرنگار و تحلیلگر، تکرار حرف قدیمی،
 #   نقل‌قول بی‌منبع و تفسیر حرف دیگران همان قاعدهٔ عادی را دارند.
 #   سنجش روی ۱۸ پست، دو قرعه (war_stmt.sids.json؛ قبل war_stmt_before.json، بعد
 #   war_stmt_after.json): ۷ از ۸ بیانیهٔ مقام ارشد (تهدید رضایی به پایگاه‌های
 #   اروپایی، برداشتن محدودیت‌ها، عبداللهی زیر بمباران، حیدری و قرارگاه ناوها،
 #   ایزدی، سخنگوی ارتش، عراقچی «فراتر از ایران») از normal 2/2 به major 2/2
-#   رفت؛ ۵ صدای غیرمقامی (پنس و بلینکنِ سابق، نمایندهٔ کنگره، کارشناسان چینی،
-#   تحلیل آتلانتیک) هیچ‌کدام major نشدند و گذشته‌نگر، تبلیغ، ورزش، اوکراین و
-#   کنترل major هم جابه‌جا نشدند. قرعهٔ نگهبان روی ۱۲ پست جنگی
-#   (war_stmt_guard_after.json): از ۹ رویداد، ۸ همان major ماندند و فقط انفجار
-#   بی‌توضیح بغداد normal شد؛ دو تهدید فرماندهٔ ارشد (ایزدی، رضایی) major شدند و
-#   حرف پنس (معاون سابق) normal ماند.
+#   رفت. هشتم، حرف نعیم قاسم دربارهٔ بهانه‌های هستهای (نه دربارهٔ نبرد)، فقط یک
+#   قرعه از دو major شد و در واژگان بعدی normal 2/2 ماند. ۵ صدای غیرمقامی (پنس و
+#   بلینکنِ سابق، نمایندهٔ کنگره، کارشناسان چینی، تحلیل آتلانتیک) هیچ‌کدام major
+#   نشدند و گذشته‌نگر، تبلیغ، ورزش، اوکراین و کنترل major هم جابه‌جا نشدند.
+#   قرعهٔ نگهبان روی ۱۲ پست جنگی (war_stmt_guard_after.json): از ۹ رویداد، ۸ همان
+#   major ماندند و فقط انفجار بی‌توضیح بغداد normal شد؛ دو تهدید فرماندهٔ ارشد
+#   (ایزدی، رضایی) major شدند و حرف پنس (معاون سابق) normal ماند. با واژگان
+#   نهایی همین نگهبان یک قرعه (war_stmt_guard_final.json) ۱۱ از ۱۲ را major داد و
+#   این بار بغداد هم major شد — همان مورد مبهم همیشگی.
 #   سپس دامنهٔ مقام‌ها به رئیس کشور/دولت و رهبر گروه مسلح و قاعدهٔ تقدم بر
-#   روحانی باز شد؛ سنجش ۶ پست رئیسان و وزرا و ۸ پست از همین مجموعه، دو قرعه
-#   (war_stmt2_before/after.json و war_stmt3_after.json): نخست‌وزیر انگلیس
-#   major 2/2 (قبل هم بود)، رهبر انقلاب از major/normal به major 2/2، لاوروف
-#   دربارهٔ ایران major ۱ از ۲، و در عوض نخست‌وزیر اسپانیا (کشور بیرون منطقه و
-#   غیردخیل) normal 2/2، لاوروف دربارهٔ اوکراین normal 2/2، و پست نتانیاهو که
-#   خودِ کانال «عملیات روانی انتخاباتی» توصیفش کرده زیر major ماند — یعنی مرز
-#   جغرافیا و «حرف دربارهٔ جنگ» کار می‌کند و موارد مبهم همان‌جا می‌مانند.
+#   روحانی باز شد: ۶ پست رئیسان و وزرا، دو قرعه (war_stmt2_before/after.json).
+#   نخست‌وزیر انگلیس major 2/2 (قبل هم بود؛ با واژگان نهایی دوباره سنجیده نشد)،
+#   رهبر انقلاب از major/normal به major 2/2، لاوروف دربارهٔ ایران major ۱ از ۲،
+#   و در عوض نخست‌وزیر اسپانیا (کشور بیرون منطقه و غیردخیل) normal 2/2 و لاوروف
+#   دربارهٔ اوکراین normal 2/2. زیر واژگان نهایی ۸ پست سنجیده شد — همان ۵ پستِ
+#   این مجموعه به‌علاوهٔ قاسم، پنس و تبلیغ به‌عنوان کنترل (war_stmt3_after.json) —
+#   و دو بیانیهٔ اردوغان دربارهٔ همین جنگ major 2/2 شد (war_stmt4_after.json)،
+#   یعنی شاخهٔ رئیس دولتِ منطقه کار می‌کند. پست نتانیاهو زیر major ماند، ولی
+#   دلیلش قید «حرف تازه» است نه جغرافیا: خودِ کانال آن را «عملیات روانی
+#   انتخاباتی» توصیف کرده و در واژگان میانی یک قرعه major شده بود.
 IMPORTANCE_SYSTEM_PROMPT = """You judge how important a Persian news item is, for a reader who has very little time and only wants the news that truly matters. This reader follows Iran — its security, its war and diplomacy, its economy and the prices people pay — and the region around it.
 Output ONLY one word from this list, lowercase, nothing else:
 major, normal, trivial
@@ -135,7 +143,7 @@ Judge the news by what it actually does, not by its topic, and remember that onl
 
 The consequence has to be a consequence for THIS reader, not merely a dramatic story somewhere. What happens to Iran, or to the war, the negotiations, oil, the currency or the prices the reader pays, is major. A big story inside another country's own affairs — its domestic politics, its courts, its elections, its science or space programme — is not major here, however loudly it is reported there, unless it changes something for Iran or for this region.
 
-War is the exception, and war news from Iran and this region never takes the lower label. When the item reports a NEW development in the fighting in Iran or this region — an attack, strike, shelling, raid or exchange of fire; a missile or drone launched, intercepted or shot down; fighters, troops, ships or aircraft moved or deployed for a fight; casualties, damage or captures caused by fighting; a ceasefire reached, violated or broken — judge it major, however brief the report is, even when it does not spell out what happens next; the fighting itself is the consequence for this reader. A fresh statement about the war in Iran and this region by a senior official is major in the same way, even when it is only words: what a head of state or government — a president, a prime minister, a monarch or a supreme leader — a foreign or defence minister, a senior military commander, an official spokesman, or the leader of an armed group fighting here says counts, whether it is a position, a warning, a threat, a promise of response, a condition or a decision. The speaker has to speak for Iran, a state in this region, an armed group fighting here, or a great power involved in this war. Someone who holds such a position now counts even if they are also a cleric; a former official does not. What decides a development is whether the text reports something the fighting has done: a one-sided claim that an attack, shelling, interception, hit or ceasefire did happen is still that development. Not every voice counts: a member of parliament, a cleric without such an office, an expert, a journalist or an analyst talking about the war, a re-run of an old statement, an unsourced quote, and commentary about what someone said follow the ordinary rules above, as do a denial that anything happened, and a memoir, first-person account or anniversary of a past war.
+War is the exception, and war news from Iran and this region never takes the lower label. When the item reports a NEW development in the fighting in Iran or this region — an attack, strike, shelling, raid or exchange of fire; a missile or drone launched, intercepted or shot down; fighters, troops, ships or aircraft moved or deployed for a fight; casualties, damage or captures caused by fighting; a ceasefire reached, violated or broken — judge it major, however brief the report is, even when it does not spell out what happens next; the fighting itself is the consequence for this reader. A fresh statement about the war in Iran and this region by a senior official is major in the same way, even when it is only words: what a head of state or government — a president, a prime minister, a monarch or a supreme leader — a foreign or defence minister, a senior military commander, an official spokesman, or the leader of an armed group fighting here says counts, whether it is a position, a warning, a threat, a promise of response, a condition or a decision. The speaker has to speak for Iran, a state in this region, an armed group fighting here, or a great power involved in this war. Someone who holds such an office now counts even if they are also a cleric; someone whose only claim is a past office does not. What decides a development is whether the text reports something the fighting has done: a one-sided claim that an attack, shelling, interception, hit or ceasefire did happen is still that development. Not every voice counts: a member of parliament, a cleric without such an office, an expert, a journalist or an analyst talking about the war, a re-run of an old statement, an unsourced quote, and commentary about what someone said follow the ordinary rules above, as do a denial that anything happened, and a memoir, first-person account or anniversary of a past war.
 
 Most items are not major. Choose major only when the reader would be worse off today for not knowing it. When the text leaves you unsure between two labels, choose the lower one.
 
