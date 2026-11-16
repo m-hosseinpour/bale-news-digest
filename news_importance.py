@@ -36,11 +36,12 @@ EMOJI_PATTERN = re.compile(
 MAX_BAD_RESPONSE_RETRIES = 3
 
 # این پرامپت دو چیز را از پیش پایین می‌آورد (تبلیغ همیشه trivial، خبر ورزشی
-# غیرمهم trivial) و یک چیز را از پیش بالا می‌برد (رویداد تازهٔ نبرد در ایران و
-# منطقه همیشه major) و یک سختگیری کلی می‌گذارد: فقط چیزِ «تازه» می‌تواند major
+# غیرمهم trivial) و یک دسته را از پیش بالا می‌برد (رویداد تازهٔ نبرد و بیانیهٔ
+# مقام ارشد دربارهٔ جنگ در ایران و منطقه همیشه major) و یک سختگیری کلی
+# می‌گذارد: فقط چیزِ «تازه» می‌تواند major
 # باشد؛ گذشته‌نگر (سالگرد، «به مناسبت …»، آرشیو، بازگویی واقعهٔ قدیم) در بهترین
 # حالت normal است؛ بیشتر خبرها major نیستند و در شک باید برچسب پایین‌تر را گرفت —
-# جز رویداد جنگی که بند خودش دارد. بقیهٔ قضاوت با خود مدل است؛ فهرست normal
+# جز خبر جنگ که بند خودش را دارد. بقیهٔ قضاوت با خود مدل است؛ فهرست normal
 # عمداً نیست و تنها موضوعی که از پیش major می‌شود همان بند جنگ است.
 #
 # دو سنجش، هر دو یک قرعه در ۲۷ سپتامبر:
@@ -73,8 +74,9 @@ MAX_BAD_RESPONSE_RETRIES = 3
 #   هر «رویداد تازه» در نبردِ ایران یا منطقه — حمله، گلوله‌باران، درگیری، موشک یا
 #   پهپاد شلیک‌شده/ساقط‌شده، جابه‌جایی نیرو و شناور، تلفات و خسارت نبرد، آتش‌بس و
 #   نقضش — همیشه major است، هرچند گزارش کوتاه باشد یا پیامدش را ننویسد؛ خودِ
-#   درگیری پیامد برای این خواننده است. بیانیه، تهدید، پیش‌بینی، تحلیل و
-#   گذشته‌نگر جنگی (خاطره، سالگرد، مرور جنگ) همان قاعدهٔ عادی را دارند.
+#   درگیری پیامد برای این خواننده است. در آن نسخه بیانیه، تهدید، پیش‌بینی،
+#   تحلیل و گذشته‌نگر جنگی (خاطره، سالگرد، مرور جنگ) همان قاعدهٔ عادی را
+#   داشتند (بند بعدی بیانیهٔ مقام ارشد را جدا کرد).
 #   سنجش روی ۲۰ پست، دو قرعه (war_gate.sids.json؛ قبل war_gate_before.json، بعد
 #   war_gate_after.json): ۷ از ۸ رویداد جنگیِ normal (حملهٔ موشکی یمن به مواضع
 #   سعودی، درگیری کرکوک، گلوله‌باران جنوب لبنان، انهدام انبارهای سعودی، انهدام
@@ -95,6 +97,21 @@ MAX_BAD_RESPONSE_RETRIES = 3
 #   آمریکا — major نشد) و دو مورد مبهم با دو قرعهٔ بیشتر
 #   (war_gate_recheck_after2.json): «صدای انفجار» قشم ۲ از ۳ major و انفجار
 #   بی‌توضیح بغداد ۲ از ۳ normal.
+# - نسخهٔ پنجم (۱۷ نوامبر ۲۰۲۶) بند جنگ را به بیانیه‌ها هم گسترد: هر حرف تازهٔ
+#   یک مقام ارشد دربارهٔ همین جنگ — رئیس‌جمهور، وزیر خارجه یا دفاع، فرماندهٔ
+#   ارشد، سخنگوی رسمی ایران یا کشورهای منطقه یا گروه‌های مسلح درگیر یا قدرت
+#   بزرگ دخیل — حتی وقتی فقط حرف است (موضع، هشدار، تهدید، وعدهٔ پاسخ، شرط،
+#   تصمیم) major است؛ ولی نمایندهٔ مجلس، روحانی، کارشناس، خبرنگار و تحلیلگر،
+#   تکرار حرف قدیمی، نقل‌قول بی‌منبع و تفسیر حرف دیگران همان قاعدهٔ عادی را
+#   دارند. سنجش روی ۱۸ پست، دو قرعه (war_stmt.sids.json؛ قبل war_stmt_before.json،
+#   بعد war_stmt_after.json): ۷ از ۸ بیانیهٔ مقام ارشد (تهدید رضایی به پایگاه‌های
+#   اروپایی، برداشتن محدودیت‌ها، عبداللهی زیر بمباران، حیدری و قرارگاه ناوها،
+#   ایزدی، سخنگوی ارتش، عراقچی «فراتر از ایران») از normal 2/2 به major 2/2
+#   رفت و نعیم قاسم ۱ از ۲؛ هر ۵ صدای غیرمقامی (پنس و بلینکنِ سابق، نمایندهٔ
+#   کنگره، کارشناسان چینی، تحلیل آتلانتیک)، گذشته‌نگر، تبلیغ، ورزش، اوکراین و
+#   کنترل major تکان نخوردند. یک قرعهٔ نگهبان روی ۱۲ پست جنگی
+#   (war_stmt_guard_after.json) همان نتیجهٔ قبل را داد و فقط انفجار بی‌توضیح
+#   بغداد normal ماند.
 IMPORTANCE_SYSTEM_PROMPT = """You judge how important a Persian news item is, for a reader who has very little time and only wants the news that truly matters. This reader follows Iran — its security, its war and diplomacy, its economy and the prices people pay — and the region around it.
 Output ONLY one word from this list, lowercase, nothing else:
 major, normal, trivial
@@ -107,7 +124,7 @@ Judge the news by what it actually does, not by its topic, and remember that onl
 
 The consequence has to be a consequence for THIS reader, not merely a dramatic story somewhere. What happens to Iran, or to the war, the negotiations, oil, the currency or the prices the reader pays, is major. A big story inside another country's own affairs — its domestic politics, its courts, its elections, its science or space programme — is not major here, however loudly it is reported there, unless it changes something for Iran or for this region.
 
-War is the exception, and a war development never takes the lower label: when the item reports a NEW development in the fighting in Iran or this region — an attack, strike, shelling, raid or exchange of fire; a missile or drone launched, intercepted or shot down; fighters, troops, ships or aircraft moved or deployed for a fight; casualties, damage or captures caused by fighting; a ceasefire reached, violated or broken — judge it major, however brief the report is, even when it does not spell out what happens next. The fighting itself is the consequence for this reader. What decides it is whether the text reports something the fighting has done: a one-sided claim that an attack, shelling, interception, hit or ceasefire did happen is still that development, but a stated intention, threat, prediction, assessment, commentary or analysis about the war, a denial that anything happened, and a memoir, first-person account or anniversary of a past war all follow the ordinary rules above.
+War is the exception, and war news never takes the lower label. When the item reports a NEW development in the fighting in Iran or this region — an attack, strike, shelling, raid or exchange of fire; a missile or drone launched, intercepted or shot down; fighters, troops, ships or aircraft moved or deployed for a fight; casualties, damage or captures caused by fighting; a ceasefire reached, violated or broken — judge it major, however brief the report is, even when it does not spell out what happens next; the fighting itself is the consequence for this reader. A fresh statement by a senior official about this war is major in the same way, even when it is only words: what a president, a foreign or defence minister, a senior military commander, or the official spokesman says counts — for Iran, for a state in this region, for an armed group fighting here, or for a great power involved in this war — whether it is a position, a warning, a threat, a promise of response, a condition or a decision. What decides a development is whether the text reports something the fighting has done: a one-sided claim that an attack, shelling, interception, hit or ceasefire did happen is still that development. Not every voice counts: a member of parliament, a cleric, an expert, a journalist or an analyst talking about the war, a re-run of an old statement, an unsourced quote, and commentary about what someone said follow the ordinary rules above, as do a denial that anything happened, and a memoir, first-person account or anniversary of a past war.
 
 Most items are not major. Choose major only when the reader would be worse off today for not knowing it. When the text leaves you unsure between two labels, choose the lower one.
 
