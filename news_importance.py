@@ -67,6 +67,21 @@ MAX_BAD_RESPONSE_RETRIES = 3
 #   می‌شوند (شایعهٔ صدام حفتر، هشدار نارنجی هوا) و یک بیانیهٔ دکترینی ارتش هم
 #   major شد. مدل روی خبرِ بیگانه گاهی تا trivial پایین می‌رود در حالی که normal
 #   درست‌تر است؛ با آستانهٔ فعلی (major) این بر تصمیم ارسال اثری ندارد.
+# - نسخهٔ چهارم (۱۶ نوامبر ۲۰۲۶) به درخواست کاربر یک بند جدا برای خبر جنگ گذاشت:
+#   هر «رویداد تازه» در نبردِ ایران یا منطقه — حمله، گلوله‌باران، درگیری، موشک یا
+#   پهپاد شلیک‌شده/ساقط‌شده، جابه‌جایی نیرو و شناور، تلفات و خسارت نبرد، آتش‌بس و
+#   نقضش — همیشه major است، هرچند گزارش کوتاه باشد یا پیامدش را ننویسد؛ خودِ
+#   درگیری پیامد برای این خواننده است. بیانیه، تهدید، پیش‌بینی، تحلیل و
+#   گذشته‌نگر جنگی (خاطره، سالگرد، مرور جنگ) همان قاعدهٔ عادی را دارند.
+#   سنجش روی ۲۰ پست، دو قرعه (war_gate.sids.json؛ قبل war_gate_before.json، بعد
+#   war_gate_after.json): ۷ از ۸ رویداد جنگیِ normal (حملهٔ موشکی یمن به مواضع
+#   سعودی، درگیری کرکوک، گلوله‌باران جنوب لبنان، انهدام انبارهای سعودی، انحلال
+#   تیم پژاک در مرز، ساقط‌شدن پهپاد در غرب ایران، «صدای انفجار» قشم) در هر دو
+#   قرعه major شدند؛ ۳ تهدید لفظی، ۳ گذشته‌نگر جنگی، تبلیغ، ورزش و جنگ اوکراین
+#   تکان نخوردند و ۲ کنترل major هم major ماندند. تنها جامانده: انفجار بی‌توضیح
+#   بغداد. هزینه: «صدای انفجار» تأییدنشده در ایران حالا major می‌شود. سنجش تکی
+#   روی ۵ پست دیگر (war_gate_probe_after.json): تصاویر خرابه‌های قدیمی و انفجار
+#   کارخانهٔ ترکیه normal ماندند و پوشش عملیات تازه major شد.
 IMPORTANCE_SYSTEM_PROMPT = """You judge how important a Persian news item is, for a reader who has very little time and only wants the news that truly matters. This reader follows Iran — its security, its war and diplomacy, its economy and the prices people pay — and the region around it.
 Output ONLY one word from this list, lowercase, nothing else:
 major, normal, trivial
@@ -78,6 +93,8 @@ trivial = not really news.
 Judge the news by what it actually does, not by its topic, and remember that only something NEW can be major: something that has just happened, or has just been announced, with a real consequence for this reader. A retrospective is not news — an anniversary or commemorative post, an item published «به مناسبت …» or marking a past event, archive or file material, a repost or a re-telling of an old event, a memoir, or a first-person account in which someone recounts what happened at some earlier time. These are normal at best, and trivial when they carry no new fact at all.
 
 The consequence has to be a consequence for THIS reader, not merely a dramatic story somewhere. What happens to Iran, or to the war, the negotiations, oil, the currency or the prices the reader pays, is major. A big story inside another country's own affairs — its domestic politics, its courts, its elections, its science or space programme — is not major here, however loudly it is reported there, unless it changes something for Iran or for this region.
+
+War is the exception, and a war development never takes the lower label: when the item reports a NEW development in the fighting in Iran or this region — an attack, strike, shelling, raid or exchange of fire; a missile or drone launched, intercepted or shot down; fighters, troops, ships or aircraft moved or deployed for a fight; casualties, damage or captures caused by fighting; a ceasefire reached, violated or broken — judge it major, however brief the report is, even when it is one-sided or does not spell out what happens next. The fighting itself is the consequence for this reader. This covers what the fighting does, not what people say about it: a statement, threat, prediction, commentary or analysis about the war, and a memoir, a first-person account or an anniversary of a past war, still follow the ordinary rules above.
 
 Most items are not major. Choose major only when the reader would be worse off today for not knowing it. When the text leaves you unsure between two labels, choose the lower one.
 
