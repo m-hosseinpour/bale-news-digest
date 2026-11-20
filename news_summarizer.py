@@ -4,6 +4,7 @@ import time
 from config import CHANNEL_SLUG, OPEN_AI_MODEL_NAME
 from model import MediaKind, NewsPost
 from open_ai_client_provider import ModelAnswer, describe_answer, open_ai_client
+from post_time import format_post_time
 
 # تعداد تلاش مجدد وقتی پاسخ مدل قابل استفاده نیست: یا خالی است (گیتوی پاسخ
 # ۲۰۰ اما بدون choices می‌دهد) یا غیرفارسی (بعضی backend‌ها از نقش خارج می‌شوند).
@@ -45,6 +46,7 @@ YOUR TASK — a single news item:
 - Keep the main fact and drop what the reader does not need in order to know what happened: enumerations, secondary details, background and context sentences, stage-setting phrases («در این خصوص», «در ادامه», «به گزارش …»).
 - Cut every word that does not carry news: attribution verbs («گفت», «اعلام کرد», «تأکید کرد») when the fact stands on its own, empty intensifiers, a fact said twice in two wordings, and quotations unless the exact wording is the news. Keep an attribution or a qualifier only when it changes the fact.
 - Stay strictly faithful to the input: never add information, names, or positions that are not in it.
+- Some posts are not a report of an event but the release of footage or images of one, and say so in their own words («ویدیوی جدید از لحظه …», «تصاویری از …», «فیلمی از …»). What is new there is the release, not the event: write that new footage or images of what happened have been released, and keep the event's own date when the text gives one, so the event does not read as if it were happening now. Never turn such a post into a plain report of the event.
 - Start directly with the summary text — no emoji, no label like "خلاصه خبر" or "Summary", no introduction.
 
 YOUR TASK — a digest (a list of separate short news items):
@@ -62,7 +64,7 @@ ABSOLUTE RULES:
 2. NEVER INVENT A TITLE, POSITION, ROLE, OR AFFILIATION. If the input names a person without stating their title, use the exact name alone — never add «وزیر», «رئیس …», «کارشناس», or an organization they are not given in the text. Copy organizations, parties, and countries exactly as written, adding no affiliation or category that is not in the text.
 3. NEVER ANSWER A QUESTION. If the input is a question, restate the question itself as a news headline and add nothing beyond the text: "چرا ایران در حملات دیشب اردن را هدف قرار داد؟" → «بررسی دلایل هدف قرار دادن اردن توسط ایران در حملات دیشب.» Turning the question into a statement of fact, or supplying reasons or causes, is a hard error.
 4. LINES THAT ARE NOT NEWS MUST NEVER APPEAR IN THE SUMMARY, as fact or as quotation: calls to interact (react, comment, share, forward, follow, vote, «نظرتون را اعلام کنید», «فالو کنید») and channel promotion (the channel's or admin's name, @handle, Telegram/Bale ID, «لینک کانال», join links, «اختصاصی ما», taglines, divider/hashtag decorations). A @handle or channel name that appears only in a promo or signature line is the channel's identity, not a news subject: omit it. Never report that the post asked for reactions.
-5. NEVER MENTION AN ATTACHMENT. When the input notes a photo, video, audio, or file whose content you cannot see, write the summary as if the post were text-only: no «عکس», «تصویر», «فیلم», «ویدیو», «کلیپ», «صوت», «فایل», «ضمیمه», «منتشر شده», «در ادامه می‌بینید», and no phrase pointing the reader to a picture or clip.
+5. NEVER MENTION AN ATTACHMENT. When the input notes a photo, video, audio, or file whose content you cannot see, write the summary as if the post were text-only: no «عکس», «تصویر», «فیلم», «ویدیو», «کلیپ», «صوت», «فایل», «ضمیمه», «منتشر شده», «در ادامه می‌بینید», and no phrase pointing the reader to a picture or clip. One exception: a post whose own text announces the release of new footage or images of an event (the rule above) — there, name the release itself, but still never describe what cannot be seen and never point the reader to the file. A bracketed note that the post carries an attachment is not such an announcement.
 6. IF NOTHING IS SUMMARIZABLE — no news content, only a description of a photo or video, or a general question — return the EXACT original input text unchanged. Never write an error message, an explanation, or a request to send a news text.
 """
 
@@ -77,14 +79,29 @@ def _media_hint(media_kind: MediaKind | None) -> str:
     return f"\n\n[این خبر همراه یک {label} است.]"
 
 
+def _published_note(published_ms: int | None) -> str:
+    """بلوکِ «تاریخ انتشار» — از متن خبر جدا و صریحاً متادیتا اعلام می‌شود."""
+    if published_ms is None:
+        return ""
+    return (
+        "CONTEXT ABOUT THIS POST — METADATA, NOT PART OF THE NEWS TEXT, AND NEVER TO BE REPEATED IN THE SUMMARY.\n"
+        f"It was published on {format_post_time(published_ms)}.\n"
+        "Use it only to judge how recent an event the text mentions is: an event the text places well "
+        "before this publication date, or footage or images of something that happened well before it, "
+        "is not news of the present moment.\n\n"
+    )
+
+
 def _request_summary(
-    news_text: str, media_kind: MediaKind | None = None
+    news_text: str,
+    media_kind: MediaKind | None = None,
+    published_ms: int | None = None,
 ) -> ModelAnswer:
     """یک فراخوانی مدل؛ متن None یعنی پاسخ خالی بود (نه خطای شبکه)."""
     response = open_ai_client.chat.completions.create(
         model=OPEN_AI_MODEL_NAME,
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": _published_note(published_ms) + SYSTEM_PROMPT},
             {"role": "user", "content": news_text + _media_hint(media_kind)},
         ],
         temperature=0.0,
@@ -101,7 +118,9 @@ def _request_summary(
 
 
 def summarize_news_posts(
-    news_text: str, media_kind: MediaKind | None = None
+    news_text: str,
+    media_kind: MediaKind | None = None,
+    published_ms: int | None = None,
 ) -> str | None:
     news_text_strip = news_text.strip()
     if not news_text_strip:
@@ -113,7 +132,7 @@ def summarize_news_posts(
         answer: ModelAnswer | None = None
 
         for attempt in range(MAX_BAD_RESPONSE_RETRIES + 1):
-            answer = _request_summary(news_text, media_kind)
+            answer = _request_summary(news_text, media_kind, published_ms)
             if answer.text is not None and _looks_persian(answer.text):
                 return answer.text
             if attempt < MAX_BAD_RESPONSE_RETRIES:
@@ -181,7 +200,7 @@ def summarize_single_post(post: NewsPost) -> str:
     text = post.text.strip()
     if len(text) < SHORT_TEXT_THRESHOLD:
         return _clean_short_text(text)
-    return summarize_news_posts(text, post.media_kind) or text
+    return summarize_news_posts(text, post.media_kind, post.date_ms) or text
 
 
 def _post_link(post: NewsPost) -> str:

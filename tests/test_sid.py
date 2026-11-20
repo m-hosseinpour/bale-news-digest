@@ -1,6 +1,7 @@
 import pytest
 
 from news_collector import _build_sid
+from model import NewsPost
 
 
 def test_sid_is_rid_dash_date():
@@ -32,3 +33,9 @@ def test_rid_is_not_rounded_through_float():
     entry = {"rid": rid, "date": 1790163720319}
     assert _build_sid(entry).startswith(rid + "-")
     assert str(int(float(rid))) != rid
+
+
+def test_news_post_reads_its_date_from_sid():
+    # rid منفی نباید جداکنندهٔ تاریخ حساب شود.
+    post = NewsPost(sid="-42-1795098193219", text="خبر")
+    assert post.date_ms == 1795098193219

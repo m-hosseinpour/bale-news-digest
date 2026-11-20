@@ -413,7 +413,7 @@ def fetch_new_posts(seen_sids: set[str]) -> Iterable[NewsPost]:
         # یک فراخوانی برای هر پست، و همان تصمیم ارسال را می‌سازد.
         importance: Importance | None = None
         try:
-            judged = judge_importance(text)
+            judged = judge_importance(text, head.entry["date"])
         except Exception as e:
             # fail-open: بدون اهمیت هم پست فرستاده می‌شود.
             print(f"⚠ خطا در سنجش اهمیت برای sid={sid}: {e}")

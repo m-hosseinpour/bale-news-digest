@@ -7,6 +7,7 @@ import open_ai_client_provider
 from model import Importance, NewsPost
 from news_importance import _match_importance, judge_importance
 from open_ai_client_provider import ModelAnswer
+from types import SimpleNamespace
 
 
 def _answer(text, finish_reason="stop"):
@@ -67,7 +68,7 @@ def test_importance_empty_response_is_retried_then_succeeds(monkeypatch):
 
     calls = {"n": 0}
 
-    def flaky(_text):
+    def flaky(_text, _published_ms=None):
         calls["n"] += 1
         return _answer(None, None) if calls["n"] < 3 else _answer("major")
 
@@ -82,7 +83,7 @@ def test_importance_label_less_response_is_retried_then_succeeds(monkeypatch):
 
     calls = {"n": 0}
 
-    def off_script(_text):
+    def off_script(_text, _published_ms=None):
         calls["n"] += 1
         return _answer(CHINESE_REFUSAL) if calls["n"] < 2 else _answer("trivial")
 
@@ -97,7 +98,7 @@ def test_importance_persistent_bad_response_raises_after_retries(monkeypatch):
 
     calls = {"n": 0}
 
-    def always_empty(_text):
+    def always_empty(_text, _published_ms=None):
         calls["n"] += 1
         return _answer(None, None)
 
@@ -122,7 +123,7 @@ def test_unusable_answer_is_logged_with_the_raw_output(monkeypatch, capsys):
     monkeypatch.setattr(
         news_importance,
         "_request_importance",
-        lambda _t: _answer(runaway, "length"),
+        lambda _t, _published_ms=None: _answer(runaway, "length"),
     )
 
     with pytest.raises(RuntimeError) as excinfo:
@@ -142,7 +143,7 @@ def test_huge_raw_answer_is_truncated_in_the_log(monkeypatch, capsys):
     monkeypatch.setattr(
         news_importance,
         "_request_importance",
-        lambda _t: _answer(huge, "length"),
+        lambda _t, _published_ms=None: _answer(huge, "length"),
     )
 
     with pytest.raises(RuntimeError):
@@ -159,7 +160,7 @@ def test_importance_transport_error_is_retried_then_succeeds(monkeypatch):
 
     calls = {"n": 0}
 
-    def flaky(_text):
+    def flaky(_text, _published_ms=None):
         calls["n"] += 1
         if calls["n"] == 1:
             raise TimeoutError("گیتوی جواب نداد")
@@ -176,7 +177,7 @@ def test_importance_persistent_transport_error_raises_after_retries(monkeypatch)
 
     calls = {"n": 0}
 
-    def always_timeout(_text):
+    def always_timeout(_text, _published_ms=None):
         calls["n"] += 1
         raise TimeoutError("گیتوی جواب نداد")
 
@@ -191,11 +192,41 @@ def test_importance_persistent_transport_error_raises_after_retries(monkeypatch)
 
 
 def test_importance_of_content_free_text_is_none_without_calling_model(monkeypatch):
-    def boom(_text):
+    def boom(_text, _published_ms=None):
         raise AssertionError("نباید برای متن بدون محتوا به مدل درخواست بزند")
 
     monkeypatch.setattr(news_importance, "_request_importance", boom)
     assert judge_importance("🔴🎥🔺") is None
+
+
+class _RecordingCompletions:
+    def __init__(self, content):
+        self.content = content
+        self.requests = []
+
+    def create(self, **kwargs):
+        self.requests.append(kwargs)
+        choice = SimpleNamespace(
+            message=SimpleNamespace(content=self.content), finish_reason="stop"
+        )
+        return SimpleNamespace(choices=[choice])
+
+
+def test_importance_published_time_is_metadata_not_news(monkeypatch):
+    fake = _RecordingCompletions("major")
+    monkeypatch.setattr(
+        news_importance,
+        "open_ai_client",
+        SimpleNamespace(chat=SimpleNamespace(completions=fake)),
+    )
+
+    assert judge_importance("خبری برای سنجش اهمیت", 1795098193219) is Importance.MAJOR
+
+    system = fake.requests[0]["messages"][0]["content"]
+    user = fake.requests[0]["messages"][1]["content"]
+    assert "METADATA" in system
+    assert "۲۸ آبان ۱۴۰۵" in system
+    assert "۱۴۰۵" not in user
 
 
 # ---------- NewsPost model ----------
@@ -325,11 +356,30 @@ def _collect(monkeypatch, history):
 
 
 def test_collector_stores_the_judged_importance(monkeypatch):
-    monkeypatch.setattr(news_collector, "judge_importance", lambda _t: Importance.MAJOR)
+    monkeypatch.setattr(news_collector, "judge_importance", lambda _t, _published_ms=None: Importance.MAJOR)
 
     posts = _collect(monkeypatch, [_entry("1", 2000, "خبر مهم")])
 
     assert posts[0].importance is Importance.MAJOR
+
+
+def test_collector_passes_the_post_date_to_the_judge(monkeypatch):
+    """تاریخ انتشار پست باید به سنجش اهمیت برسد، وگرنه گیت «حالا» ندارد.
+
+    بدون این تست، حذف آرگومان دوم judge_importance در collector هیچ تستی را
+    قرمز نمی‌کرد، چون همهٔ stubها آن را اختیاری می‌گیرند.
+    """
+    seen: list[int | None] = []
+
+    def capture(_text, published_ms=None):
+        seen.append(published_ms)
+        return Importance.MAJOR
+
+    monkeypatch.setattr(news_collector, "judge_importance", capture)
+
+    _collect(monkeypatch, [_entry("1", 1795098193219, "خبر مهم")])
+
+    assert seen == [1795098193219]
 
 
 def test_collector_marks_content_free_post_trivial(monkeypatch):
@@ -337,7 +387,7 @@ def test_collector_marks_content_free_post_trivial(monkeypatch):
 
     با None، fail-open همان پست را به کانال می‌فرستاد.
     """
-    monkeypatch.setattr(news_collector, "judge_importance", lambda _t: None)
+    monkeypatch.setattr(news_collector, "judge_importance", lambda _t, _published_ms=None: None)
 
     posts = _collect(monkeypatch, [_entry("1", 2000, "🔴🎥🔺")])
 
@@ -345,7 +395,7 @@ def test_collector_marks_content_free_post_trivial(monkeypatch):
 
 
 def test_collector_importance_failure_is_fail_open(monkeypatch):
-    def boom(_text):
+    def boom(_text, _published_ms=None):
         raise RuntimeError("گیتوی خراب است")
 
     monkeypatch.setattr(news_collector, "judge_importance", boom)

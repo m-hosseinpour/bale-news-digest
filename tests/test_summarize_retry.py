@@ -1,7 +1,10 @@
+from types import SimpleNamespace
+
 import pytest
 
 import news_summarizer
-from news_summarizer import _looks_persian, summarize_news_posts
+from news_summarizer import _looks_persian, summarize_news_posts, summarize_single_post
+from model import NewsPost
 from open_ai_client_provider import ModelAnswer
 
 
@@ -21,7 +24,7 @@ def test_empty_response_is_retried_then_succeeds(monkeypatch):
 
     calls = {"n": 0}
 
-    def flaky(_text, _media_kind=None):
+    def flaky(_text, _media_kind=None, _published_ms=None):
         calls["n"] += 1
         return _answer(None, None) if calls["n"] < 3 else _answer(PERSIAN_SUMMARY)
 
@@ -36,7 +39,7 @@ def test_persistent_empty_response_raises_after_retries(monkeypatch):
 
     calls = {"n": 0}
 
-    def always_empty(_text, _media_kind=None):
+    def always_empty(_text, _media_kind=None, _published_ms=None):
         calls["n"] += 1
         return _answer(None, None)
 
@@ -53,7 +56,7 @@ def test_non_persian_response_is_retried_then_succeeds(monkeypatch):
 
     calls = {"n": 0}
 
-    def off_language(_text, _media_kind=None):
+    def off_language(_text, _media_kind=None, _published_ms=None):
         calls["n"] += 1
         return _answer(CHINESE_REFUSAL) if calls["n"] < 3 else _answer(PERSIAN_SUMMARY)
 
@@ -68,7 +71,7 @@ def test_persistent_non_persian_response_raises_after_retries(monkeypatch):
 
     calls = {"n": 0}
 
-    def always_chinese(_text, _media_kind=None):
+    def always_chinese(_text, _media_kind=None, _published_ms=None):
         calls["n"] += 1
         return _answer(CHINESE_REFUSAL)
 
@@ -92,7 +95,7 @@ def test_unusable_summary_is_logged_with_the_raw_output(monkeypatch, capsys):
     monkeypatch.setattr(
         news_summarizer,
         "_request_summary",
-        lambda _text, _media_kind=None: _answer(CHINESE_REFUSAL, "length"),
+        lambda _text, _media_kind=None, _published_ms=None: _answer(CHINESE_REFUSAL, "length"),
     )
 
     with pytest.raises(RuntimeError) as excinfo:
@@ -126,8 +129,71 @@ def test_looks_persian_accepts_persian_summaries(text):
 
 
 def test_blank_text_returns_none_without_calling_model(monkeypatch):
-    def boom(_text):
+    def boom(_text, _published_ms=None):
         raise AssertionError("نباید برای متن خالی به مدل درخواست بزند")
 
     monkeypatch.setattr(news_summarizer, "_request_summary", boom)
     assert summarize_news_posts("   ") is None
+
+
+class _RecordingCompletions:
+    """کلاینت قلابی که پیام‌های فرستاده‌شده را نگه می‌دارد."""
+
+    def __init__(self, content):
+        self.content = content
+        self.requests = []
+
+    def create(self, **kwargs):
+        self.requests.append(kwargs)
+        choice = SimpleNamespace(
+            message=SimpleNamespace(content=self.content), finish_reason="stop"
+        )
+        return SimpleNamespace(choices=[choice])
+
+
+def _record_client(monkeypatch, module, content):
+    fake = _RecordingCompletions(content)
+    monkeypatch.setattr(
+        module, "open_ai_client", SimpleNamespace(chat=SimpleNamespace(completions=fake))
+    )
+    return fake
+
+
+def test_published_time_is_metadata_not_part_of_the_news(monkeypatch):
+    fake = _record_client(monkeypatch, news_summarizer, PERSIAN_SUMMARY)
+
+    summarize_news_posts("متن خبر", published_ms=1795098193219)
+
+    system = fake.requests[0]["messages"][0]["content"]
+    user = fake.requests[0]["messages"][1]["content"]
+    assert "METADATA" in system
+    assert "۲۸ آبان ۱۴۰۵" in system
+    # تاریخ نباید داخل متن خبر برود؛ وگرنه مدل آن را جزو خبر می‌خواند.
+    assert "۱۴۰۵" not in user
+    assert user.strip() == "متن خبر"
+
+
+def test_without_published_time_the_prompt_is_unchanged(monkeypatch):
+    fake = _record_client(monkeypatch, news_summarizer, PERSIAN_SUMMARY)
+
+    summarize_news_posts("متن خبر")
+
+    system = fake.requests[0]["messages"][0]["content"]
+    assert system == news_summarizer.SYSTEM_PROMPT
+
+
+def test_single_post_sends_its_own_publication_date(monkeypatch):
+    """مسیر واقعی ارسال باید تاریخ همان پست را بفرستد، نه تاریخ دیگری.
+
+    بدون این تست، حذف post.date_ms از summarize_single_post هیچ تستی را قرمز
+    نمی‌کرد و تاریخ به خلاصه‌ساز نمی‌رسید.
+    """
+    fake = _record_client(monkeypatch, news_summarizer, PERSIAN_SUMMARY)
+
+    post = NewsPost(sid="-42-1795098193219", text="خ" * 300)
+    summarize_single_post(post)
+
+    system = fake.requests[0]["messages"][0]["content"]
+    user = fake.requests[0]["messages"][1]["content"]
+    assert "۲۸ آبان ۱۴۰۵" in system
+    assert "۱۴۰۵" not in user

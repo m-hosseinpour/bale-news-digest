@@ -8,7 +8,7 @@ import news_collector
 @pytest.fixture(autouse=True)
 def _stub_importance(monkeypatch):
     # سنجش اهمیت یک فراخوانی مدل است؛ در تست‌ها جایش را یک حکم ثابت می‌گیرد.
-    monkeypatch.setattr(news_collector, "judge_importance", lambda _text: Importance.NORMAL)
+    monkeypatch.setattr(news_collector, "judge_importance", lambda _text, _published_ms=None: Importance.NORMAL)
 
 
 def _entry(rid: str, date: int, text: str) -> dict:

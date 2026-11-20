@@ -11,6 +11,7 @@ import time
 from config import OPEN_AI_MODEL_NAME
 from model import Importance
 from open_ai_client_provider import ModelAnswer, describe_answer, open_ai_client
+from post_time import format_post_time
 
 
 URL_PATTERN = re.compile(
@@ -139,7 +140,7 @@ major = a news item that the reader should know right now, even if they read not
 normal = worth knowing but not urgent.
 trivial = not really news.
 
-Judge the news by what it actually does, not by its topic, and remember that only something NEW can be major: something that has just happened, or has just been announced, with a real consequence for this reader. A retrospective is not news — an anniversary or commemorative post, an item published «به مناسبت …» or marking a past event, archive or file material, a repost or a re-telling of an old event, a memoir, or a first-person account in which someone recounts what happened at some earlier time. These are normal at best, and trivial when they carry no new fact at all.
+Judge the news by what it actually does, not by its topic, and remember that only something NEW can be major: something that has just happened, or has just been announced, with a real consequence for this reader. A retrospective is not news — an anniversary or commemorative post, an item published «به مناسبت …» or marking a past event, archive or file material, newly released footage or images of an event that happened well before this post, a repost or a re-telling of an old event, a memoir, or a first-person account in which someone recounts what happened at some earlier time. These are normal at best, and trivial when they carry no new fact at all.
 
 The consequence has to be a consequence for THIS reader, not merely a dramatic story somewhere. What happens to Iran, or to the war, the negotiations, oil, the currency or the prices the reader pays, is major. A big story inside another country's own affairs — its domestic politics, its courts, its elections, its science or space programme — is not major here, however loudly it is reported there, unless it changes something for Iran or for this region.
 
@@ -168,12 +169,25 @@ def _clean_text(text: str) -> str:
     return text.strip()
 
 
-def _request_importance(cleaned_text: str) -> ModelAnswer:
+def _published_note(published_ms: int | None) -> str:
+    """بلوکِ «تاریخ انتشار» — صریحاً متادیتا، نه بخشی از متن خبر."""
+    if published_ms is None:
+        return ""
+    return (
+        "CONTEXT ABOUT THIS POST — METADATA, NOT PART OF THE NEWS TEXT.\n"
+        f"It was published on {format_post_time(published_ms)}.\n"
+        "Use it only to judge whether what the text reports is new or already old: an event the text "
+        "dates well before this publication date is not new, and footage or images of it released now "
+        "do not make it new.\n\n"
+    )
+
+
+def _request_importance(cleaned_text: str, published_ms: int | None = None) -> ModelAnswer:
     """یک فراخوانی مدل؛ متن None یعنی پاسخ خالی بود (نه خطای شبکه)."""
     response = open_ai_client.chat.completions.create(
         model=OPEN_AI_MODEL_NAME,
         messages=[
-            {"role": "system", "content": IMPORTANCE_SYSTEM_PROMPT},
+            {"role": "system", "content": _published_note(published_ms) + IMPORTANCE_SYSTEM_PROMPT},
             {"role": "user", "content": f"Text: {cleaned_text}\nAnswer:"},
         ],
         temperature=0.0,
@@ -214,8 +228,11 @@ def _match_importance(raw_output: str) -> Importance | None:
     return None
 
 
-def judge_importance(news_text: str) -> Importance | None:
+def judge_importance(news_text: str, published_ms: int | None = None) -> Importance | None:
     """اهمیت خبر را می‌سنجد؛ None یعنی متن محتوایی نداشت.
+
+    `published_ms` زمان انتشار پست است تا مدل بتواند تاریخِ داخل متن را با آن
+    بسنجد؛ بدون آن، «حالا» برای مدل تعریف‌شده نیست و رویداد قدیمی تازه دیده می‌شود.
 
     پاسخ خالی/بی‌برچسب و **خطای انتقالی** (timeout، قطع اتصال) هر دو تلاش
     مجدد می‌گیرند: پاسخ بد یعنی مدل از نقش خارج شده، و تپق شبکه‌ای هم نباید
@@ -233,7 +250,7 @@ def judge_importance(news_text: str) -> Importance | None:
 
         for attempt in range(MAX_BAD_RESPONSE_RETRIES + 1):
             try:
-                last_answer = _request_importance(cleaned_text)
+                last_answer = _request_importance(cleaned_text, published_ms)
                 last_error = None
             except Exception as e:  # noqa: BLE001 — خطای مدل اینجا «پاسخ بد» است
                 last_error = e

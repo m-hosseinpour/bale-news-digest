@@ -18,7 +18,7 @@ VIDEO = "video/mp4"
 @pytest.fixture(autouse=True)
 def _stub_importance(monkeypatch):
     monkeypatch.setattr(
-        news_collector, "judge_importance", lambda _text: Importance.NORMAL
+        news_collector, "judge_importance", lambda _text, _published_ms=None: Importance.NORMAL
     )
 
 

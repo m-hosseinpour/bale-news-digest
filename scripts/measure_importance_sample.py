@@ -31,7 +31,7 @@ def run(sids: list[tuple[str, str]], runs: int, out_path: str) -> None:
         verdicts = []
         for _ in range(runs):
             try:
-                verdicts.append(judge_importance(post.text).value)
+                verdicts.append(judge_importance(post.text, post.date_ms).value)
             except Exception as e:
                 verdicts.append(f"ERR:{type(e).__name__}")
         stored = post.importance.value if post.importance else "None"

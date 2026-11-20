@@ -58,3 +58,8 @@ class NewsPost(BaseModel):
     def media_kind(self) -> MediaKind | None:
         """نوع قلم اول — برای برچسب ضمیمه در خلاصه‌سازی، نه برای ارسال."""
         return self.media[0].kind if self.media else None
+
+    @property
+    def date_ms(self) -> int:
+        """زمان انتشار پست (میلی‌ثانیه) از بخش دوم sid."""
+        return int(self.sid[self.sid.index("-", 1) + 1 :])
