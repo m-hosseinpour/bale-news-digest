@@ -37,13 +37,13 @@ EMOJI_PATTERN = re.compile(
 MAX_BAD_RESPONSE_RETRIES = 3
 
 # این پرامپت دو چیز را از پیش پایین می‌آورد (تبلیغ همیشه trivial، خبر ورزشی
-# غیرمهم trivial) و یک دسته را از پیش بالا می‌برد (رویداد تازهٔ نبرد و بیانیهٔ
-# مقام ارشد دربارهٔ جنگ در ایران و منطقه همیشه major) و یک سختگیری کلی
-# می‌گذارد: فقط چیزِ «تازه» می‌تواند major
-# باشد؛ گذشته‌نگر (سالگرد، «به مناسبت …»، آرشیو، بازگویی واقعهٔ قدیم) در بهترین
-# حالت normal است؛ بیشتر خبرها major نیستند و در شک باید برچسب پایین‌تر را گرفت —
-# جز خبر جنگ که بند خودش را دارد. بقیهٔ قضاوت با خود مدل است؛ فهرست normal
-# عمداً نیست و تنها موضوعی که از پیش major می‌شود همان بند جنگ است.
+# غیرمهم trivial) و دو دسته را از پیش بالا می‌برد (رویداد تازهٔ نبرد و بیانیهٔ
+# مقام ارشد دربارهٔ جنگ در ایران و منطقه همیشه major؛ تیتر بزرگ جهانی هم major)
+# و یک سختگیری کلی می‌گذارد: فقط چیزِ «تازه» می‌تواند major باشد؛ گذشته‌نگر
+# (سالگرد، «به مناسبت …»، آرشیو، بازگویی واقعهٔ قدیم) در بهترین حالت normal است؛
+# بیشتر خبرها major نیستند و در شک باید برچسب پایین‌تر را گرفت — جز خبر جنگ و
+# تیتر جهانی که بند خودشان را دارند. بقیهٔ قضاوت با خود مدل است؛ فهرست normal
+# عمداً نیست.
 #
 # دو سنجش، هر دو یک قرعه در ۲۷ سپتامبر:
 # - نسخهٔ آزاد روی ۴۶ پست (measurements/free_gate_after.json): تبلیغ ۱۰/۱۰ و
@@ -132,7 +132,36 @@ MAX_BAD_RESPONSE_RETRIES = 3
 #   یعنی شاخهٔ رئیس دولتِ منطقه کار می‌کند. پست نتانیاهو زیر major ماند، ولی
 #   دلیلش قید «حرف تازه» است نه جغرافیا: خودِ کانال آن را «عملیات روانی
 #   انتخاباتی» توصیف کرده و در واژگان میانی یک قرعه major شده بود.
-IMPORTANCE_SYSTEM_PROMPT = """You judge how important a Persian news item is, for a reader who has very little time and only wants the news that truly matters. This reader follows Iran — its security, its war and diplomacy, its economy and the prices people pay — and the region around it.
+# - نسخهٔ ششم (۲۱ نوامبر ۲۰۲۶) به درخواست کاربر خبر جهانی را وارد کرد: بند
+#   «پیامد برای همین خواننده» که خبر بزرگِ داخلی کشورهای دیگر را عمداً پایین
+#   می‌گذاشت جای خود را به بند «تیتر بزرگ جهانی» داد — جنگ یا درگیری بین
+#   دولت‌ها/گروه‌های مسلح بیرون منطقه، حمله یا گروگان‌گیری بزرگ، انتخابات یا تغییر
+#   دولت در کشور بزرگ، توافق/نشست/شکاف دیپلماتیک بزرگ، شوک اقتصادی یا بازار
+#   جهانی، فاجعهٔ طبیعی پرتلفات، حادثهٔ هسته‌ای/شیمیایی/سایبری بزرگ، نقطهٔ عطف
+#   علمی یا فضایی، یا مرگ چهرهٔ جهانی که معادلات را عوض کند. قید «روزِ عادی یک
+#   جنگ» و «خبر داخلی روتین» جلوی سیل را می‌گیرد و بند جنگ ایران/منطقه دست‌نخورده
+#   ماند.
+#   انگیزه: بازبینی ۱۹۴ پست ۲۹ و ۳۰ آبان؛ هر ۳۸ ارسال ایران/منطقه بود و هیچ خبر
+#   جهانیِ غیرمنطقه‌ای نرفت. تنها جاماندهٔ قطعی، موشک روسی به لهستان بود که
+#   ذخیره‌اش normal بود ولی با پرامپت قبل major 2/2 شد (قرعهٔ بد، نه نقص)؛ ریزش
+#   ۲٫۵ تریلیون دلاری بورس آمریکا، افت ۵٪ نیکی، طرح آمریکا برای اوکراین و هک NCIC
+#   هم سیستماتیک normal بودند (world_news_audit_before.json).
+#   سنجش نسخهٔ جدید: ۲۰ پست، دو قرعه (world_news_after.json و after2.json) — هر ۵
+#   تیتر جهانیِ هدف major 2/2 شد (لهستان، ریزش بورس، نیکی، طرح اوکراین، هک NCIC)؛
+#   ادعای هک انویدیا normal 2/2 و حملهٔ روتین اودسا normal 2/2 ماندند؛ ۳ کنترل
+#   major ایران/منطقه (پهپاد MQ-9، هفت شرط عراقچی، هشدار یمن) major 2/2؛
+#   کنترل‌های غیرمهم (مکزیک، فیلیپین، اتریش، آلمان، پاکستان، شکایت موساد) هیچ‌کدام
+#   major نشدند (بعضی از trivial به normal رفتند)؛ تبلیغ و ورزش trivial 2/2؛ حرف
+#   سناتور آمریکایی normal 2/2. سنجش مکمل (world_news_after3.json): سه پست اپک —
+#   شروع، پایان و بیانیهٔ چهارماده‌ای — major 2/2 شدند، ولی «بیانیهٔ مشترک ندادند» و
+#   «ترک شنزن» پایین ماندند، و نتیجهٔ انتخابات برزیل trivial 2/2 آمد. پس یک جمله اضافه شد که نتیجهٔ انتخابات/تغییر
+#   دولت در کشور بزرگ با «سیاست داخلی روتین» قاطی نشود؛ بازآزمون نهایی
+#   (world_news_final*.json و world_news_elections.json) هر ۵ تیتر جهانی، اپک،
+#   نتیجهٔ انتخابات آمریکا و بیانیهٔ لولا را major 2/2 داد و کنترل‌ها را تکان نداد؛
+#   تنها لبهٔ باقی‌مانده همان پست نتیجهٔ برزیل است که trivial 2/2 ماند.
+#   هزینه: خبر «تعطیلی دولت آمریکا» یک قرعه از دو major شد، چون خطر یک بحران
+#   سیاسی/اقتصادی بزرگ است.
+IMPORTANCE_SYSTEM_PROMPT = """You judge how important a Persian news item is, for a reader who has very little time and only wants the news that truly matters. This reader follows Iran — its security, its war and diplomacy, its economy and the prices people pay — and the region around it, and also follows the world's big news.
 Output ONLY one word from this list, lowercase, nothing else:
 major, normal, trivial
 
@@ -140,9 +169,11 @@ major = a news item that the reader should know right now, even if they read not
 normal = worth knowing but not urgent.
 trivial = not really news.
 
-Judge the news by what it actually does, not by its topic, and remember that only something NEW can be major: something that has just happened, or has just been announced, with a real consequence for this reader. A retrospective is not news — an anniversary or commemorative post, an item published «به مناسبت …» or marking a past event, archive or file material, newly released footage or images of an event that happened well before this post, a repost or a re-telling of an old event, a memoir, or a first-person account in which someone recounts what happened at some earlier time. These are normal at best, and trivial when they carry no new fact at all.
+Judge the news by what it actually does, not by its topic, and remember that only something NEW can be major: something that has just happened, or has just been announced, with a real consequence for this reader or for the world. A retrospective is not news — an anniversary or commemorative post, an item published «به مناسبت …» or marking a past event, archive or file material, newly released footage or images of an event that happened well before this post, a repost or a re-telling of an old event, a memoir, or a first-person account in which someone recounts what happened at some earlier time. These are normal at best, and trivial when they carry no new fact at all.
 
-The consequence has to be a consequence for THIS reader, not merely a dramatic story somewhere. What happens to Iran, or to the war, the negotiations, oil, the currency or the prices the reader pays, is major. A big story inside another country's own affairs — its domestic politics, its courts, its elections, its science or space programme — is not major here, however loudly it is reported there, unless it changes something for Iran or for this region.
+The consequence can be a consequence for THIS reader, or it can be a genuinely world-sized story. What happens to Iran, or to the war, the negotiations, oil, the currency or the prices the reader pays, is major. So is a story that is one of the day's main world headlines, even when it happens inside another country — for example, a war or armed confrontation between states or major armed groups outside this region; a major attack, strike or hostage crisis; a national election result or a change of government in a major country (the result itself is the headline, even when it is contested); a major diplomatic agreement, summit or rupture; a global economic or market shock such as a crash, an oil shock, or sanctions with global reach; a natural disaster with mass casualties; a nuclear, chemical or major cyber incident; a major scientific or space milestone; or the death of a world figure who changes the picture. This reader follows the world's big news too, so a story is not demoted merely because it is not about Iran.
+
+The bar is the day's main world stories, not every foreign report. A routine day of an ongoing war — an ordinary strike, a small advance, a familiar exchange — is not a world headline. Routine domestic politics, an ordinary court case, a small protest, local crime, celebrity or sport, a product or tech announcement, a minor accident, or one country's routine military activity stays below major, however dramatic it sounds locally — but the result of a national election or a change of government in a major country is a world headline, not routine domestic politics, even when the loser disputes the result. "Big" means a well-informed reader anywhere would call it one of the day's main stories, not merely that it is dramatic or widely shared.
 
 War is the exception, and war news from Iran and this region never takes the lower label. When the item reports a NEW development in the fighting in Iran or this region — an attack, strike, shelling, raid or exchange of fire; a missile or drone launched, intercepted or shot down; fighters, troops, ships or aircraft moved or deployed for a fight; casualties, damage or captures caused by fighting; a ceasefire reached, violated or broken — judge it major, however brief the report is, even when it does not spell out what happens next; the fighting itself is the consequence for this reader. A fresh statement about the war in Iran and this region by a senior official is major in the same way, even when it is only words: what a head of state or government — a president, a prime minister, a monarch or a supreme leader — a foreign or defence minister, a senior military commander, an official spokesman, or the leader of an armed group fighting here says counts, whether it is a position, a warning, a threat, a promise of response, a condition or a decision. The speaker has to speak for Iran, a state in this region, an armed group fighting here, or a great power involved in this war. Someone who holds such an office now counts even if they are also a cleric; someone whose only claim is a past office does not. What decides a development is whether the text reports something the fighting has done: a one-sided claim that an attack, shelling, interception, hit or ceasefire did happen is still that development. Not every voice counts: a member of parliament, a cleric without such an office, an expert, a journalist or an analyst talking about the war, a re-run of an old statement, an unsourced quote, and commentary about what someone said follow the ordinary rules above, as do a denial that anything happened, and a memoir, first-person account or anniversary of a past war.
 
