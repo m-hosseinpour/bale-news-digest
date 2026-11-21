@@ -72,6 +72,27 @@ HISTORY_PAGE_SLEEP=0.3    # مکث بین صفحه‌ها (ثانیه)
 HTTP_TIMEOUT=30           # timeout درخواست‌ها (ثانیه)
 ```
 
+### سرویس LLM
+
+هر endpoint سازگار با OpenAI کار می‌کند؛ هر سه مقدار از `.env` خوانده می‌شوند و
+مقدار نمونه‌شان در `.env.example` هست:
+
+```env
+OPEN_AI_BASE_URL=    # آدرس پایهٔ سرویس
+OPEN_AI_MODEL_NAME=  # شناسهٔ مدل روی همان سرویس
+OPEN_AI_API_KEY=
+```
+
+برای اشتراک **OpenCode Go** آدرس پایه `https://opencode.ai/inference/go/openai/v1`
+است، مدل با شناسهٔ همان فهرست (`curl https://opencode.ai/inference/go/v1/models`) و
+کلید از Console وُرک‌اسپیس. مدل‌های `*-free` بیرون از خود OpenCode پاسخ ۴۰۳ می‌دهند.
+Go برای agentهای کدنویسی ساخته شده و ترافیک را برای سوءاستفاده پایش می‌کند؛ این
+ربات هم بار کمی دارد، ولی استفاده‌اش همان استفادهٔ معمول Go نیست.
+
+`open_ai_client_provider.py` همراه هر درخواست یک `User-Agent` با نام همین
+برنامه (`bale-news-digest/1.0`) و شناسهٔ ثابت `x-opencode-session` می‌فرستد، که
+Go برای مسیریابی و کش پرامپت می‌خواهد؛ بقیهٔ providerها به این دو نیازی ندارند.
+
 ### فیلتر اهمیت
 
 هر پست **یک** فراخوانی LLM می‌گیرد و همان تصمیم ارسال را می‌سازد: اگر اهمیتش

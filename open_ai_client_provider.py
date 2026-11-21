@@ -4,9 +4,21 @@ from openai import OpenAI
 
 from config import OPEN_AI_BASE_URL, OPEN_AI_API_KEY
 
+# OpenCode Go (opencode.ai/inference/go) از کلاینتی که صدایش می‌زند می‌خواهد با
+# نام خودش معرفی شود و یک شناسهٔ ثابت نشست بفرستد تا مسیریابی و کش پرامپت
+# پایدار بماند. providerهای دیگر به این دو هدر نیازی ندارند.
+# شناسه عمداً برای همهٔ پست‌ها یکی است، نه یکتا برای هر پست: پرامپت سیستمی
+# تکرارشونده است و همین باعث می‌شود در کش بماند.
+LLM_USER_AGENT = "bale-news-digest/1.0"
+LLM_SESSION_ID = "ses_bale_news_digest"
+
 open_ai_client = OpenAI(
     base_url=OPEN_AI_BASE_URL,
     api_key=OPEN_AI_API_KEY,
+    default_headers={
+        "User-Agent": LLM_USER_AGENT,
+        "x-opencode-session": LLM_SESSION_ID,
+    },
 )
 
 
